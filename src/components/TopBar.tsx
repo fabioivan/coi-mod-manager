@@ -1,4 +1,4 @@
-import { RefreshCw, Bell } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 
 interface TopBarProps {
   outdatedCount: number;
@@ -7,32 +7,78 @@ interface TopBarProps {
   loading: boolean;
 }
 
+const C = {
+  darkerGrey: "#292929",
+  borderGrey: "#222222",
+  metaGrey: "#a0a0a0",
+  yellow: "#e5ca5f",
+};
+
 export function TopBar({ outdatedCount, onRefresh, onUpdateAll, loading }: TopBarProps) {
   return (
-    <div className="h-14 border-b border-zinc-800 px-5 flex items-center justify-between bg-zinc-950 shrink-0">
-      <div className="flex items-center gap-2">
+    <div style={{
+      height: "42px",
+      borderBottom: `1px solid ${C.borderGrey}`,
+      padding: "0 16px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      backgroundColor: C.darkerGrey,
+      flexShrink: 0,
+      position: "relative",
+    }}>
+      {/* Barra de progresso amarela no topo quando sincronizando */}
+      {loading && <div className="sync-progress-bar" />}
+
+      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
         {outdatedCount > 0 && (
-          <div className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/30 rounded-md px-3 py-1.5">
-            <Bell size={14} className="text-yellow-400" />
-            <span className="text-xs text-yellow-300 font-medium">
+          <>
+            <span style={{ fontSize: "12px", color: C.yellow, fontWeight: 600 }}>
               {outdatedCount} mod{outdatedCount > 1 ? "s" : ""} para atualizar
             </span>
             <button
               onClick={onUpdateAll}
-              className="ml-2 text-xs bg-yellow-500 hover:bg-yellow-400 text-black font-semibold px-2 py-0.5 rounded transition-colors"
+              style={{
+                fontSize: "11px",
+                backgroundColor: C.yellow,
+                color: C.borderGrey,
+                fontWeight: 700,
+                padding: "2px 10px",
+                borderRadius: "2px",
+                border: "none",
+                cursor: "pointer",
+                textTransform: "uppercase",
+              }}
             >
               Atualizar tudo
             </button>
-          </div>
+          </>
         )}
       </div>
+
       <button
         onClick={onRefresh}
         disabled={loading}
-        className="flex items-center gap-2 text-xs text-zinc-400 hover:text-zinc-100 transition-colors disabled:opacity-50"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "6px",
+          fontSize: "12px",
+          color: C.metaGrey,
+          background: "none",
+          border: "none",
+          cursor: loading ? "default" : "pointer",
+          opacity: loading ? 0.7 : 1,
+          textTransform: "uppercase",
+          fontWeight: 600,
+          letterSpacing: "0.5px",
+        }}
       >
-        <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-        {loading ? "Atualizando..." : "Verificar atualizações"}
+        <RefreshCw
+          size={12}
+          style={{ animation: loading ? "spin 0.8s linear infinite" : "none" }}
+        />
+        {loading ? "Sincronizando..." : "Sincronizar"}
       </button>
     </div>
   );

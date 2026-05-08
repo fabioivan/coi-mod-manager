@@ -1,67 +1,178 @@
 import { useState, useMemo } from "react";
 import { Mod, getModStatus } from "@/types/mod";
+import { SidebarFilters } from "@/types/filters";
 import { ModCard } from "@/components/ModCard";
-import { Search } from "lucide-react";
+import { Search, Loader2 } from "lucide-react";
 
 interface ModListProps {
   mods: Mod[];
-  selectedCategory: string | null;
+  filters: SidebarFilters;
   onUpdate: (mod: Mod) => void;
   onInstall: (mod: Mod) => void;
+  syncing?: boolean;
 }
 
-export function ModList({ mods, selectedCategory, onUpdate, onInstall }: ModListProps) {
+const C = {
+  darkerGrey: "#292929",
+  borderGrey: "#222222",
+  grey: "#414141",
+  metaGrey: "#a0a0a0",
+  lighterGrey: "#c6c6c6",
+  yellow: "#e5ca5f",
+};
+
+type StatusFilter = "all" | "installed" | "outdated";
+const STATUS_LABELS: Record<StatusFilter, string> = {
+  all: "Todos",
+  installed: "Instalados",
+  outdated: "Desatualizados",
+};
+
+export function ModList({ mods, filters, onUpdate, onInstall, syncing }: ModListProps) {
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | "installed" | "outdated">("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
   const filtered = useMemo(() => {
     return mods.filter((mod) => {
-      if (selectedCategory && mod.category !== selectedCategory) return false;
+      // Categoria (sidebar)
+      if (filters.selectedTag) {
+        const tags = mod.category.split(",").map((t) => t.trim());
+        if (!tags.includes(filters.selectedTag)) return false;
+      }
+      // Devstate (sidebar)
+      if (filters.devstates.length > 0 && !filters.devstates.includes(mod.devstate)) return false;
+      // Versão do jogo (sidebar)
+      if (filters.gameVersion && mod.game_version !== filters.gameVersion) return false;
+      // Busca por nome
       if (search && !mod.name.toLowerCase().includes(search.toLowerCase())) return false;
-      if (filter === "installed") return mod.is_installed;
-      if (filter === "outdated") return getModStatus(mod) === "outdated";
+      // Status (toolbar)
+      if (statusFilter === "installed") return mod.is_installed;
+      if (statusFilter === "outdated") return getModStatus(mod) === "outdated";
       return true;
     });
-  }, [mods, selectedCategory, search, filter]);
+  }, [mods, filters, search, statusFilter]);
 
   return (
-    <div className="flex flex-col flex-1 min-h-0">
-      <div className="px-5 py-3 flex gap-3 items-center border-b border-zinc-800 bg-zinc-950">
-        <div className="relative flex-1 max-w-xs">
-          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+      {/* Toolbar */}
+      <div style={{
+        padding: "8px 16px",
+        display: "flex",
+        gap: "10px",
+        alignItems: "center",
+        borderBottom: `1px solid ${C.borderGrey}`,
+        backgroundColor: C.darkerGrey,
+        flexShrink: 0,
+      }}>
+        <div style={{ position: "relative", flex: "1", maxWidth: "320px" }}>
+          <Search size={13} style={{
+            position: "absolute",
+            left: "8px",
+            top: "50%",
+            transform: "translateY(-50%)",
+            color: C.metaGrey,
+            pointerEvents: "none",
+          }} />
           <input
             type="text"
             placeholder="Buscar mod..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 text-sm bg-zinc-800 border border-zinc-700 rounded text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500"
+            style={{
+              width: "100%",
+              paddingLeft: "28px",
+              paddingRight: "10px",
+              paddingTop: "5px",
+              paddingBottom: "5px",
+              fontSize: "12px",
+              backgroundColor: C.grey,
+              border: `1px solid ${C.borderGrey}`,
+              borderRadius: "4px",
+              color: "#f8f8f8",
+              outline: "none",
+              boxSizing: "border-box",
+            }}
           />
         </div>
-        <div className="flex gap-1">
+
+        <div style={{ display: "flex", gap: "4px" }}>
           {(["all", "installed", "outdated"] as const).map((f) => (
             <button
               key={f}
-              onClick={() => setFilter(f)}
-              className={`text-xs px-3 py-1.5 rounded transition-colors ${
-                filter === f
-                  ? "bg-zinc-700 text-white"
-                  : "text-zinc-500 hover:text-zinc-300"
-              }`}
+              onClick={() => setStatusFilter(f)}
+              style={{
+                fontSize: "11px",
+                padding: "3px 10px",
+                borderRadius: "12px",
+                border: `1px solid ${statusFilter === f ? "transparent" : C.grey}`,
+                backgroundColor: statusFilter === f ? C.yellow : "transparent",
+                color: statusFilter === f ? C.borderGrey : C.lighterGrey,
+                fontWeight: statusFilter === f ? 700 : 600,
+                cursor: "pointer",
+                textTransform: "uppercase",
+              }}
             >
-              {{ all: "Todos", installed: "Instalados", outdated: "Desatualizados" }[f]}
+              {STATUS_LABELS[f]}
             </button>
           ))}
         </div>
-        <span className="text-xs text-zinc-600 ml-auto">{filtered.length} mods</span>
+
+        <span style={{ fontSize: "12px", color: C.metaGrey, marginLeft: "auto" }}>
+          {filtered.length} mods
+        </span>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-5">
-        {filtered.length === 0 ? (
-          <div className="flex items-center justify-center h-32 text-zinc-600 text-sm">
+      {/* Grid */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "16px", position: "relative" }}>
+        {/* Overlay quando re-sincronizando com mods já carregados */}
+        {syncing && mods.length > 0 && (
+          <div style={{
+            position: "absolute",
+            inset: 0,
+            backgroundColor: "rgba(41,41,41,0.55)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "12px",
+            zIndex: 5,
+            backdropFilter: "blur(1px)",
+          }}>
+            <Loader2 size={32} style={{ animation: "spin 0.8s linear infinite", color: "#e5ca5f" }} />
+            <span style={{ color: "#c6c6c6", fontSize: "14px", fontWeight: 600 }}>Sincronizando...</span>
+          </div>
+        )}
+        {syncing && mods.length === 0 ? (
+          <div style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "192px",
+            gap: "12px",
+            color: C.metaGrey,
+            fontSize: "14px",
+          }}>
+            <Loader2 size={28} style={{ animation: "spin 0.8s linear infinite", color: C.lighterGrey }} />
+            <span>Sincronizando mods...</span>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "128px",
+            color: C.metaGrey,
+            fontSize: "14px",
+          }}>
             Nenhum mod encontrado
           </div>
         ) : (
-          <div className="grid gap-3">
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+            gap: "12px",
+          }}>
             {filtered.map((mod) => (
               <ModCard key={mod.id} mod={mod} onUpdate={onUpdate} onInstall={onInstall} />
             ))}

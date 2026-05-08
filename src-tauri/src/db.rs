@@ -21,20 +21,22 @@ impl Database {
             );
         ")?;
 
-        let applied: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM schema_migrations WHERE version = 1",
-            [],
-            |r| r.get(0),
-        )?;
-
-        if applied == 0 {
+        let v1: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM schema_migrations WHERE version = 1", [], |r| r.get(0))?;
+        if v1 == 0 {
             conn.execute_batch("
                 CREATE TABLE IF NOT EXISTS mods (
                     id TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
+                    author TEXT NOT NULL DEFAULT '',
+                    description TEXT NOT NULL DEFAULT '',
                     category TEXT NOT NULL DEFAULT '',
+                    devstate INTEGER NOT NULL DEFAULT 0,
+                    game_version TEXT NOT NULL DEFAULT '',
+                    scrape_rank INTEGER NOT NULL DEFAULT 0,
                     version_available TEXT NOT NULL DEFAULT '',
                     version_installed TEXT,
+                    updated_at TEXT,
                     url TEXT NOT NULL DEFAULT '',
                     thumbnail TEXT,
                     is_installed INTEGER NOT NULL DEFAULT 0,
@@ -42,9 +44,34 @@ impl Database {
                 );
                 CREATE INDEX IF NOT EXISTS idx_category ON mods(category);
                 CREATE INDEX IF NOT EXISTS idx_installed ON mods(is_installed);
+                CREATE INDEX IF NOT EXISTS idx_updated_at ON mods(updated_at DESC);
                 INSERT INTO schema_migrations (version) VALUES (1);
             ")?;
         }
+
+        macro_rules! alter_if_missing {
+            ($ver:expr, $sql:expr) => {{
+                let n: i64 = conn.query_row(
+                    "SELECT COUNT(*) FROM schema_migrations WHERE version = ?1",
+                    params![$ver], |r| r.get(0))?;
+                if n == 0 {
+                    let _ = conn.execute_batch($sql);
+                    conn.execute_batch(&format!(
+                        "INSERT INTO schema_migrations (version) VALUES ({});", $ver))?;
+                }
+            }};
+        }
+
+        alter_if_missing!(2, "ALTER TABLE mods ADD COLUMN author TEXT NOT NULL DEFAULT '';\
+                              ALTER TABLE mods ADD COLUMN description TEXT NOT NULL DEFAULT '';\
+                              ALTER TABLE mods ADD COLUMN devstate INTEGER NOT NULL DEFAULT 0;");
+        alter_if_missing!(3, "ALTER TABLE mods ADD COLUMN game_version TEXT NOT NULL DEFAULT '';");
+        alter_if_missing!(4, "ALTER TABLE mods ADD COLUMN scrape_rank INTEGER NOT NULL DEFAULT 0;");
+        alter_if_missing!(5, "ALTER TABLE mods ADD COLUMN updated_at TEXT;");
+        alter_if_missing!(6,
+            "ALTER TABLE mods ADD COLUMN downloads INTEGER NOT NULL DEFAULT 0;\
+             ALTER TABLE mods ADD COLUMN favorites INTEGER NOT NULL DEFAULT 0;\
+             ALTER TABLE mods ADD COLUMN approval_pct INTEGER NOT NULL DEFAULT -1;");
 
         Ok(())
     }
@@ -52,23 +79,34 @@ impl Database {
     pub async fn get_all_mods(&self) -> Result<Vec<Mod>> {
         let conn = self.0.lock().await;
         let mut stmt = conn.prepare(
-            "SELECT id, name, category, version_available, version_installed,
+            "SELECT id, name, author, description, category, devstate,
+                    game_version, scrape_rank, version_available, version_installed,
+                    updated_at, downloads, favorites, approval_pct,
                     url, thumbnail, is_installed, last_scraped_at
              FROM mods
-             ORDER BY category, name"
+             ORDER BY updated_at DESC NULLS LAST, scrape_rank ASC"
         )?;
 
         let mods = stmt.query_map([], |row| {
             Ok(Mod {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                category: row.get(2)?,
-                version_available: row.get(3)?,
-                version_installed: row.get(4)?,
-                url: row.get(5)?,
-                thumbnail: row.get(6)?,
-                is_installed: row.get::<_, i32>(7)? != 0,
-                last_scraped_at: row.get(8)?,
+                id:                row.get(0)?,
+                name:              row.get(1)?,
+                author:            row.get(2)?,
+                description:       row.get(3)?,
+                category:          row.get(4)?,
+                devstate:          row.get(5)?,
+                game_version:      row.get(6)?,
+                scrape_rank:       row.get(7)?,
+                version_available: row.get(8)?,
+                version_installed: row.get(9)?,
+                updated_at:        row.get(10)?,
+                downloads:         row.get(11)?,
+                favorites:         row.get(12)?,
+                approval_pct:      row.get(13)?,
+                url:               row.get(14)?,
+                thumbnail:         row.get(15)?,
+                is_installed:      row.get::<_, i32>(16)? != 0,
+                last_scraped_at:   row.get(17)?,
             })
         })?
         .collect::<Result<Vec<_>>>()?;
@@ -79,16 +117,33 @@ impl Database {
     pub async fn upsert_mod(&self, m: &Mod) -> Result<()> {
         let conn = self.0.lock().await;
         conn.execute(
-            "INSERT INTO mods (id, name, category, version_available, url, thumbnail, last_scraped_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+            "INSERT INTO mods (id, name, author, description, category, devstate,
+                               game_version, scrape_rank, version_available,
+                               updated_at, downloads, favorites, approval_pct,
+                               url, thumbnail, last_scraped_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16)
              ON CONFLICT(id) DO UPDATE SET
-                name = excluded.name,
-                category = excluded.category,
+                name              = excluded.name,
+                author            = excluded.author,
+                description       = excluded.description,
+                category          = excluded.category,
+                devstate          = excluded.devstate,
+                game_version      = excluded.game_version,
+                scrape_rank       = excluded.scrape_rank,
                 version_available = excluded.version_available,
-                url = excluded.url,
-                thumbnail = excluded.thumbnail,
-                last_scraped_at = excluded.last_scraped_at",
-            params![m.id, m.name, m.category, m.version_available, m.url, m.thumbnail, m.last_scraped_at],
+                updated_at        = excluded.updated_at,
+                downloads         = excluded.downloads,
+                favorites         = excluded.favorites,
+                approval_pct      = excluded.approval_pct,
+                url               = excluded.url,
+                thumbnail         = excluded.thumbnail,
+                last_scraped_at   = excluded.last_scraped_at",
+            params![
+                m.id, m.name, m.author, m.description, m.category, m.devstate,
+                m.game_version, m.scrape_rank, m.version_available,
+                m.updated_at, m.downloads, m.favorites, m.approval_pct,
+                m.url, m.thumbnail, m.last_scraped_at
+            ],
         )?;
         Ok(())
     }
@@ -114,26 +169,36 @@ impl Database {
     pub async fn get_outdated_mods(&self) -> Result<Vec<Mod>> {
         let conn = self.0.lock().await;
         let mut stmt = conn.prepare(
-            "SELECT id, name, category, version_available, version_installed,
-                    url, thumbnail, is_installed, last_scraped_at
+            "SELECT id, name, author, description, category, devstate,
+                    game_version, scrape_rank, version_available, version_installed,
+                    updated_at, url, thumbnail, is_installed, last_scraped_at
              FROM mods
              WHERE is_installed = 1
                AND version_installed IS NOT NULL
                AND version_installed != version_available
-             ORDER BY category, name"
+             ORDER BY name"
         )?;
 
         let mods = stmt.query_map([], |row| {
             Ok(Mod {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                category: row.get(2)?,
-                version_available: row.get(3)?,
-                version_installed: row.get(4)?,
-                url: row.get(5)?,
-                thumbnail: row.get(6)?,
-                is_installed: row.get::<_, i32>(7)? != 0,
-                last_scraped_at: row.get(8)?,
+                id:                row.get(0)?,
+                name:              row.get(1)?,
+                author:            row.get(2)?,
+                description:       row.get(3)?,
+                category:          row.get(4)?,
+                devstate:          row.get(5)?,
+                game_version:      row.get(6)?,
+                scrape_rank:       row.get(7)?,
+                version_available: row.get(8)?,
+                version_installed: row.get(9)?,
+                updated_at:        row.get(10)?,
+                downloads:         row.get(11)?,
+                favorites:         row.get(12)?,
+                approval_pct:      row.get(13)?,
+                url:               row.get(14)?,
+                thumbnail:         row.get(15)?,
+                is_installed:      row.get::<_, i32>(16)? != 0,
+                last_scraped_at:   row.get(17)?,
             })
         })?
         .collect::<Result<Vec<_>>>()?;
@@ -143,12 +208,14 @@ impl Database {
 
     pub async fn needs_scrape(&self, min_age_hours: i64) -> Result<bool> {
         let conn = self.0.lock().await;
-        let count: i64 = conn.query_row(
+        // Re-scrape se: nenhum mod recente OU mods existem mas faltam updated_at (schema antigo)
+        let fresh: i64 = conn.query_row(
             "SELECT COUNT(*) FROM mods
-             WHERE last_scraped_at > datetime('now', ?1)",
+             WHERE last_scraped_at > datetime('now', ?1)
+               AND updated_at IS NOT NULL",
             params![format!("-{} hours", min_age_hours)],
             |r| r.get(0),
         )?;
-        Ok(count == 0)
+        Ok(fresh == 0)
     }
 }
