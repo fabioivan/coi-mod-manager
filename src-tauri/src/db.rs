@@ -73,6 +73,18 @@ impl Database {
              ALTER TABLE mods ADD COLUMN favorites INTEGER NOT NULL DEFAULT 0;\
              ALTER TABLE mods ADD COLUMN approval_pct INTEGER NOT NULL DEFAULT -1;");
 
+        let v7: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM schema_migrations WHERE version = 7", [], |r| r.get(0))?;
+        if v7 == 0 {
+            conn.execute_batch("
+                CREATE TABLE IF NOT EXISTS settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                );
+                INSERT INTO schema_migrations (version) VALUES (7);
+            ")?;
+        }
+
         Ok(())
     }
 
@@ -204,6 +216,42 @@ impl Database {
         .collect::<Result<Vec<_>>>()?;
 
         Ok(mods)
+    }
+
+    pub async fn get_setting(&self, key: &str) -> Result<Option<String>> {
+        let conn = self.0.lock().await;
+        match conn.query_row(
+            "SELECT value FROM settings WHERE key = ?1",
+            params![key],
+            |r| r.get(0),
+        ) {
+            Ok(v) => Ok(Some(v)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub async fn set_setting(&self, key: &str, value: &str) -> Result<()> {
+        let conn = self.0.lock().await;
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES (?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            params![key, value],
+        )?;
+        Ok(())
+    }
+
+    pub async fn get_outdated_ids(&self) -> Result<Vec<String>> {
+        let conn = self.0.lock().await;
+        let mut stmt = conn.prepare(
+            "SELECT id FROM mods
+             WHERE is_installed = 1
+               AND version_installed IS NOT NULL
+               AND version_installed != version_available
+               AND version_available != ''"
+        )?;
+        let ids = stmt.query_map([], |r| r.get(0))?.collect::<Result<Vec<String>>>()?;
+        Ok(ids)
     }
 
     pub async fn needs_scrape(&self, min_age_hours: i64) -> Result<bool> {

@@ -10,6 +10,7 @@ interface ModListProps {
   onUpdate: (mod: Mod) => void;
   onInstall: (mod: Mod) => void;
   syncing?: boolean;
+  installingIds?: Set<string>;
 }
 
 const C = {
@@ -28,7 +29,7 @@ const STATUS_LABELS: Record<StatusFilter, string> = {
   outdated: "Desatualizados",
 };
 
-export function ModList({ mods, filters, onUpdate, onInstall, syncing }: ModListProps) {
+export function ModList({ mods, filters, onUpdate, onInstall, syncing, installingIds }: ModListProps) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
@@ -174,7 +175,13 @@ export function ModList({ mods, filters, onUpdate, onInstall, syncing }: ModList
             gap: "12px",
           }}>
             {filtered.map((mod) => (
-              <ModCard key={mod.id} mod={mod} onUpdate={onUpdate} onInstall={onInstall} />
+              <ModCard
+                key={mod.id}
+                mod={mod}
+                onUpdate={onUpdate}
+                onInstall={onInstall}
+                installing={installingIds?.has(mod.id) ?? false}
+              />
             ))}
           </div>
         )}

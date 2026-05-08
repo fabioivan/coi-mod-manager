@@ -3,7 +3,12 @@ mod db;
 mod models;
 mod scraper;
 
-use commands::{get_mods, install_mod, run_scrape, sync_mods, update_all_mods, update_mod};
+use commands::{
+    get_mods, install_mod, run_scrape, sync_mods, update_all_mods, update_mod,
+    get_setting, set_setting, detect_mods_folder, pick_folder,
+    scan_installed_mods, run_scan_installed,
+    check_for_update, install_update, check_app_update_on_startup,
+};
 use db::Database;
 use tauri::Manager;
 
@@ -12,6 +17,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&data_dir)?;
@@ -35,6 +42,22 @@ pub fn run() {
                 });
             }
 
+            // Scan mods instalados em background se pasta configurada
+            {
+                let handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    run_scan_installed(&handle).await;
+                });
+            }
+
+            // Verifica atualizações do app em background
+            {
+                let handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    check_app_update_on_startup(&handle).await;
+                });
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -43,6 +66,13 @@ pub fn run() {
             update_mod,
             update_all_mods,
             install_mod,
+            get_setting,
+            set_setting,
+            detect_mods_folder,
+            pick_folder,
+            scan_installed_mods,
+            check_for_update,
+            install_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

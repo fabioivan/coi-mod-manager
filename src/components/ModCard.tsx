@@ -1,10 +1,11 @@
 import { Mod, getModStatus, DEVSTATE_LABELS, DEVSTATE_STYLES } from "@/types/mod";
-import { Download, RefreshCw, CheckCircle, Cpu } from "lucide-react";
+import { Download, RefreshCw, CheckCircle, Cpu, Loader2 } from "lucide-react";
 
 interface ModCardProps {
   mod: Mod;
   onUpdate: (mod: Mod) => void;
   onInstall: (mod: Mod) => void;
+  installing?: boolean;
 }
 
 const C = {
@@ -43,7 +44,7 @@ const tag: React.CSSProperties = {
   flexShrink: 0,
 };
 
-export function ModCard({ mod, onUpdate, onInstall }: ModCardProps) {
+export function ModCard({ mod, onUpdate, onInstall, installing = false }: ModCardProps) {
   const status = getModStatus(mod);
   const tags = mod.category ? mod.category.split(",").map((t) => t.trim()).filter(Boolean) : [];
   const devstyle = DEVSTATE_STYLES[mod.devstate];
@@ -255,7 +256,13 @@ export function ModCard({ mod, onUpdate, onInstall }: ModCardProps) {
               <CheckCircle size={13} />
             </div>
           )}
-          {status === "outdated" && (
+          {installing && (
+            <div style={{ display: "flex", alignItems: "center", gap: "4px", color: C.yellow, fontSize: "11px", fontWeight: 600 }}>
+              <Loader2 size={11} style={{ animation: "spin 0.8s linear infinite" }} />
+              {status === "outdated" ? "Atualizando..." : "Instalando..."}
+            </div>
+          )}
+          {!installing && status === "outdated" && (
             <button
               style={{
                 display: "flex", alignItems: "center", gap: "4px",
@@ -269,7 +276,7 @@ export function ModCard({ mod, onUpdate, onInstall }: ModCardProps) {
               Atualizar
             </button>
           )}
-          {status === "not_installed" && (
+          {!installing && status === "not_installed" && (
             <button
               style={{
                 display: "flex", alignItems: "center", gap: "4px",

@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { Sidebar } from "@/components/Sidebar";
 import { TopBar } from "@/components/TopBar";
 import { ModList } from "@/pages/ModList";
+import { Settings } from "@/pages/Settings";
 import { Mod } from "@/types/mod";
 import { SidebarFilters, SORT_OPTIONS } from "@/types/filters";
 
@@ -14,6 +15,9 @@ function splitTags(category: string): string[] {
 export default function App() {
   const [mods, setMods] = useState<Mod[]>([]);
   const [syncing, setSyncing] = useState(false);
+  const [installingIds, setInstallingIds] = useState<Set<string>>(new Set());
+  const [view, setView] = useState<"mods" | "settings">("mods");
+  const [appUpdate, setAppUpdate] = useState<{ version: string; notes?: string } | null>(null);
   const [filters, setFilters] = useState<SidebarFilters>({
     sortBy: "updated",
     timeRange: "all-time",
@@ -38,6 +42,10 @@ export default function App() {
         const result = await invoke<Mod[]>("get_mods");
         setMods(result);
         setSyncing(false);
+      });
+
+      await listen<{ version: string; notes?: string }>("update-available", (e) => {
+        setAppUpdate(e.payload);
       });
     }
 
@@ -67,22 +75,39 @@ export default function App() {
   }
 
   async function handleUpdateAll() {
+    setSyncing(true);
     try {
       await invoke("update_all_mods");
       await loadMods();
     } catch (e) {
       console.error("Erro ao atualizar:", e);
+    } finally {
+      setSyncing(false);
     }
   }
 
   async function handleUpdate(mod: Mod) {
-    await invoke("update_mod", { modId: mod.id });
-    await loadMods();
+    setInstallingIds((prev) => new Set([...prev, mod.id]));
+    try {
+      await invoke("update_mod", { modId: mod.id });
+      await loadMods();
+    } catch (e) {
+      console.error("Erro ao atualizar mod:", e);
+    } finally {
+      setInstallingIds((prev) => { const s = new Set(prev); s.delete(mod.id); return s; });
+    }
   }
 
   async function handleInstall(mod: Mod) {
-    await invoke("install_mod", { modId: mod.id });
-    await loadMods();
+    setInstallingIds((prev) => new Set([...prev, mod.id]));
+    try {
+      await invoke("install_mod", { modId: mod.id });
+      await loadMods();
+    } catch (e) {
+      console.error("Erro ao instalar mod:", e);
+    } finally {
+      setInstallingIds((prev) => { const s = new Set(prev); s.delete(mod.id); return s; });
+    }
   }
 
   const tags = useMemo(() => {
@@ -155,14 +180,27 @@ export default function App() {
           onRefresh={handleRefresh}
           onUpdateAll={handleUpdateAll}
           loading={syncing}
+          view={view}
+          onViewChange={setView}
+          appUpdate={appUpdate}
+          onInstallUpdate={async () => {
+            setSyncing(true);
+            try { await invoke("install_update"); }
+            catch (e) { console.error("Erro ao instalar update:", e); setSyncing(false); }
+          }}
         />
-        <ModList
-          mods={sortedMods}
-          filters={filters}
-          onUpdate={handleUpdate}
-          onInstall={handleInstall}
-          syncing={syncing}
-        />
+        {view === "mods" ? (
+          <ModList
+            mods={sortedMods}
+            filters={filters}
+            onUpdate={handleUpdate}
+            onInstall={handleInstall}
+            syncing={syncing}
+            installingIds={installingIds}
+          />
+        ) : (
+          <Settings />
+        )}
       </div>
     </div>
   );

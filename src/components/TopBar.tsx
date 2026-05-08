@@ -1,10 +1,19 @@
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Settings, ArrowLeft, Download } from "lucide-react";
+
+interface UpdateInfo {
+  version: string;
+  notes?: string;
+}
 
 interface TopBarProps {
   outdatedCount: number;
   onRefresh: () => void;
   onUpdateAll: () => void;
   loading: boolean;
+  view: "mods" | "settings";
+  onViewChange: (v: "mods" | "settings") => void;
+  appUpdate?: UpdateInfo | null;
+  onInstallUpdate?: () => void;
 }
 
 const C = {
@@ -14,7 +23,7 @@ const C = {
   yellow: "#e5ca5f",
 };
 
-export function TopBar({ outdatedCount, onRefresh, onUpdateAll, loading }: TopBarProps) {
+export function TopBar({ outdatedCount, onRefresh, onUpdateAll, loading, view, onViewChange, appUpdate, onInstallUpdate }: TopBarProps) {
   return (
     <div style={{
       height: "42px",
@@ -31,6 +40,25 @@ export function TopBar({ outdatedCount, onRefresh, onUpdateAll, loading }: TopBa
       {loading && <div className="sync-progress-bar" />}
 
       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+        {appUpdate && (
+          <>
+            <span style={{ fontSize: "12px", color: "#81c784", fontWeight: 600 }}>
+              App v{appUpdate.version} disponível
+            </span>
+            <button
+              onClick={onInstallUpdate}
+              style={{
+                display: "flex", alignItems: "center", gap: "4px",
+                fontSize: "11px", backgroundColor: "#2e7d32", color: "#e8f5e9",
+                fontWeight: 700, padding: "2px 10px", borderRadius: "2px",
+                border: "none", cursor: "pointer", textTransform: "uppercase",
+              }}
+            >
+              <Download size={10} />
+              Atualizar app
+            </button>
+          </>
+        )}
         {outdatedCount > 0 && (
           <>
             <span style={{ fontSize: "12px", color: C.yellow, fontWeight: 600 }}>
@@ -56,30 +84,49 @@ export function TopBar({ outdatedCount, onRefresh, onUpdateAll, loading }: TopBa
         )}
       </div>
 
-      <button
-        onClick={onRefresh}
-        disabled={loading}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "6px",
-          fontSize: "12px",
-          color: C.metaGrey,
-          background: "none",
-          border: "none",
-          cursor: loading ? "default" : "pointer",
-          opacity: loading ? 0.7 : 1,
-          textTransform: "uppercase",
-          fontWeight: 600,
-          letterSpacing: "0.5px",
-        }}
-      >
-        <RefreshCw
-          size={12}
-          style={{ animation: loading ? "spin 0.8s linear infinite" : "none" }}
-        />
-        {loading ? "Sincronizando..." : "Sincronizar"}
-      </button>
+      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        {view === "mods" && (
+          <button
+            onClick={onRefresh}
+            disabled={loading}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              fontSize: "12px",
+              color: C.metaGrey,
+              background: "none",
+              border: "none",
+              cursor: loading ? "default" : "pointer",
+              opacity: loading ? 0.7 : 1,
+              textTransform: "uppercase",
+              fontWeight: 600,
+              letterSpacing: "0.5px",
+            }}
+          >
+            <RefreshCw
+              size={12}
+              style={{ animation: loading ? "spin 0.8s linear infinite" : "none" }}
+            />
+            {loading ? "Sincronizando..." : "Sincronizar"}
+          </button>
+        )}
+        <button
+          onClick={() => onViewChange(view === "settings" ? "mods" : "settings")}
+          title={view === "settings" ? "Voltar" : "Configurações"}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            color: view === "settings" ? C.yellow : C.metaGrey,
+            padding: "2px",
+          }}
+        >
+          {view === "settings" ? <ArrowLeft size={15} /> : <Settings size={15} />}
+        </button>
+      </div>
     </div>
   );
 }
