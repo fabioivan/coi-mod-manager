@@ -39,9 +39,5 @@
       }
     }
   },
-  "plugins": {
-    "sql": {
-      "preloadConnections": ["sqlite:coi_mods.db"]
-    }
-  }
+  "plugins": {}
 }
