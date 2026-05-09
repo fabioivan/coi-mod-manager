@@ -1,11 +1,14 @@
+import { useTranslation } from "react-i18next";
 import { Mod, getModStatus, DEVSTATE_LABELS, DEVSTATE_STYLES } from "@/types/mod";
-import { Download, RefreshCw, CheckCircle, Cpu, Loader2 } from "lucide-react";
+import { Download, RefreshCw, CheckCircle, Cpu, Loader2, Trash2 } from "lucide-react";
 
 interface ModCardProps {
   mod: Mod;
   onUpdate: (mod: Mod) => void;
   onInstall: (mod: Mod) => void;
+  onUninstall: (mod: Mod) => void;
   installing?: boolean;
+  showUninstall?: boolean;
 }
 
 const C = {
@@ -19,18 +22,18 @@ const C = {
   yellow: "#e5ca5f",
 };
 
-function timeAgo(iso: string): string {
+function timeAgo(iso: string, t: (key: string, options?: Record<string, unknown>) => string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const m = Math.floor(diff / 60000);
-  if (m < 1) return "agora";
-  if (m < 60) return `${m}m atrás`;
+  if (m < 1) return t("modCard.time_now");
+  if (m < 60) return t("modCard.time_m_ago", { count: m });
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h atrás`;
+  if (h < 24) return t("modCard.time_h_ago", { count: h });
   const d = Math.floor(h / 24);
-  if (d < 30) return `${d}d atrás`;
+  if (d < 30) return t("modCard.time_d_ago", { count: d });
   const mo = Math.floor(d / 30);
-  if (mo < 12) return `${mo}mo atrás`;
-  return `${Math.floor(mo / 12)}a atrás`;
+  if (mo < 12) return t("modCard.time_mo_ago", { count: mo });
+  return t("modCard.time_y_ago", { count: Math.floor(mo / 12) });
 }
 
 const tag: React.CSSProperties = {
@@ -44,11 +47,12 @@ const tag: React.CSSProperties = {
   flexShrink: 0,
 };
 
-export function ModCard({ mod, onUpdate, onInstall, installing = false }: ModCardProps) {
+export function ModCard({ mod, onUpdate, onInstall, onUninstall, installing = false, showUninstall = false }: ModCardProps) {
+  const { t } = useTranslation();
   const status = getModStatus(mod);
   const tags = mod.category ? mod.category.split(",").map((t) => t.trim()).filter(Boolean) : [];
   const devstyle = DEVSTATE_STYLES[mod.devstate];
-  const devlabel = DEVSTATE_LABELS[mod.devstate];
+  const devlabel = t("mod." + DEVSTATE_LABELS[mod.devstate]);
 
   return (
     <div style={{
@@ -72,7 +76,7 @@ export function ModCard({ mod, onUpdate, onInstall, installing = false }: ModCar
           {mod.thumbnail ? (
             <img
               src={mod.thumbnail}
-              alt={mod.name}
+              alt={mod.name + " thumbnail"}
               style={{
                 width: "128px",
                 height: "128px",
@@ -126,7 +130,7 @@ export function ModCard({ mod, onUpdate, onInstall, installing = false }: ModCar
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
             }}>
-              by {mod.author}
+              {t("modCard.by_author", { author: mod.author })}
             </div>
           )}
 
@@ -166,17 +170,17 @@ export function ModCard({ mod, onUpdate, onInstall, installing = false }: ModCar
                 gap: "3px",
               }}>
                 <Cpu size={10} />
-                Jogo v{mod.game_version}
+                {t("modCard.game_version", { version: mod.game_version })}
               </span>
             )}
             {status === "installed" && (
               <span style={{ ...tag, backgroundColor: "#1e6e3e", color: "#a3e4bc" }}>
-                Instalado
+                {t("modCard.status_installed")}
               </span>
             )}
             {status === "outdated" && (
               <span style={{ ...tag, backgroundColor: "#7a5a00", color: "#ffe08a" }}>
-                Atualização disponível
+                {t("modCard.status_outdated")}
               </span>
             )}
           </div>
@@ -214,7 +218,7 @@ export function ModCard({ mod, onUpdate, onInstall, installing = false }: ModCar
             <path d="m13.1 1a10.927 10.927 0 0 0 -10.534 8.223l-.732-1.107a1 1 0 1 0 -1.668 1.1l2.2 3.334a1.084 1.084 0 0 0 .634.425 1.024 1.024 0 0 0 .756-.145l3.3-2.223a1 1 0 1 0 -1.115-1.659l-1.501 1.012a8.909 8.909 0 1 1 8.66 11.04 8.892 8.892 0 0 1 -7.281-3.822 1 1 0 1 0 -1.64 1.143 10.881 10.881 0 0 0 19.821-6.321 10.963 10.963 0 0 0 -10.9-11z"/>
             <path d="m13 5.95a1 1 0 0 0 -1 1v5.05a1.04 1.04 0 0 0 .293.707l3 3.027a1.013 1.013 0 0 0 1.414.007 1 1 0 0 0 .006-1.414l-2.713-2.738v-4.639a1 1 0 0 0 -1-1z"/>
           </svg>
-          <span>{mod.updated_at ? timeAgo(mod.updated_at) : "—"}</span>
+          <span>{mod.updated_at ? timeAgo(mod.updated_at, t) : t("modCard.no_date")}</span>
         </div>
 
         {/* Direita: downloads + favorites + approval + botão ação */}
@@ -256,10 +260,24 @@ export function ModCard({ mod, onUpdate, onInstall, installing = false }: ModCar
               <CheckCircle size={13} />
             </div>
           )}
+          {showUninstall && status === "installed" && !installing && (
+            <button
+              style={{
+                display: "flex", alignItems: "center", gap: "4px",
+                fontSize: "11px", backgroundColor: "#6e2020", color: "#f5b7b7",
+                fontWeight: 700, padding: "2px 8px", borderRadius: "2px",
+                border: "none", cursor: "pointer", textTransform: "uppercase",
+              }}
+              onClick={() => onUninstall(mod)}
+            >
+              <Trash2 size={10} />
+              {t("modCard.btn_uninstall")}
+            </button>
+          )}
           {installing && (
             <div style={{ display: "flex", alignItems: "center", gap: "4px", color: C.yellow, fontSize: "11px", fontWeight: 600 }}>
               <Loader2 size={11} style={{ animation: "spin 0.8s linear infinite" }} />
-              {status === "outdated" ? "Atualizando..." : "Instalando..."}
+              {status === "outdated" ? t("modCard.updating") : t("modCard.installing")}
             </div>
           )}
           {!installing && status === "outdated" && (
@@ -273,7 +291,7 @@ export function ModCard({ mod, onUpdate, onInstall, installing = false }: ModCar
               onClick={() => onUpdate(mod)}
             >
               <RefreshCw size={10} />
-              Atualizar
+              {t("modCard.btn_update")}
             </button>
           )}
           {!installing && status === "not_installed" && (
@@ -287,7 +305,7 @@ export function ModCard({ mod, onUpdate, onInstall, installing = false }: ModCar
               onClick={() => onInstall(mod)}
             >
               <Download size={10} />
-              Instalar
+              {t("modCard.btn_install")}
             </button>
           )}
         </div>

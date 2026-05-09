@@ -28,10 +28,10 @@ export function getModStatus(mod: Mod): ModStatus {
 }
 
 export const DEVSTATE_LABELS: Record<number, string> = {
-  1: "Beta",
-  2: "Stable",
-  3: "Deprecated",
-  4: "Abandoned",
+  1: "devstate_beta",
+  2: "devstate_stable",
+  3: "devstate_deprecated",
+  4: "devstate_abandoned",
 };
 
 // bg/color pairs matching .mod-card-devstate-N from site.css

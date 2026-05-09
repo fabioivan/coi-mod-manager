@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { RefreshCw, Settings, ArrowLeft, Download } from "lucide-react";
 
 interface UpdateInfo {
@@ -24,6 +25,7 @@ const C = {
 };
 
 export function TopBar({ outdatedCount, onRefresh, onUpdateAll, loading, view, onViewChange, appUpdate, onInstallUpdate }: TopBarProps) {
+  const { t } = useTranslation();
   return (
     <div style={{
       height: "42px",
@@ -43,7 +45,7 @@ export function TopBar({ outdatedCount, onRefresh, onUpdateAll, loading, view, o
         {appUpdate && (
           <>
             <span style={{ fontSize: "12px", color: "#81c784", fontWeight: 600 }}>
-              App v{appUpdate.version} disponível
+              {t("topBar.app_update_available", { version: appUpdate.version })}
             </span>
             <button
               onClick={onInstallUpdate}
@@ -55,14 +57,14 @@ export function TopBar({ outdatedCount, onRefresh, onUpdateAll, loading, view, o
               }}
             >
               <Download size={10} />
-              Atualizar app
+              {t("topBar.btn_install_update")}
             </button>
           </>
         )}
         {outdatedCount > 0 && (
           <>
             <span style={{ fontSize: "12px", color: C.yellow, fontWeight: 600 }}>
-              {outdatedCount} mod{outdatedCount > 1 ? "s" : ""} para atualizar
+              {t("topBar.outdated_count", { count: outdatedCount })}
             </span>
             <button
               onClick={onUpdateAll}
@@ -78,7 +80,7 @@ export function TopBar({ outdatedCount, onRefresh, onUpdateAll, loading, view, o
                 textTransform: "uppercase",
               }}
             >
-              Atualizar tudo
+              {t("topBar.btn_update_all")}
             </button>
           </>
         )}
@@ -108,12 +110,12 @@ export function TopBar({ outdatedCount, onRefresh, onUpdateAll, loading, view, o
               size={12}
               style={{ animation: loading ? "spin 0.8s linear infinite" : "none" }}
             />
-            {loading ? "Sincronizando..." : "Sincronizar"}
+            {loading ? t("topBar.btn_syncing") : t("topBar.btn_sync")}
           </button>
         )}
         <button
           onClick={() => onViewChange(view === "settings" ? "mods" : "settings")}
-          title={view === "settings" ? "Voltar" : "Configurações"}
+          title={view === "settings" ? t("topBar.tooltip_back") : t("topBar.tooltip_settings")}
           style={{
             display: "flex",
             alignItems: "center",
