@@ -12,8 +12,20 @@ pub async fn scrape_all(
     let mut rank: i32 = 0;
 
     let html = client
-        .get(format!("{}/Mods", BASE_URL))
-        .query(&[("orderBy", order_by), ("timeRange", time_range)])
+        .get(format!("{}/Mods/Search", BASE_URL))
+        .query(&[
+            ("orderBy",             order_by),
+            ("timeRange",           time_range),
+            ("author",              ""),
+            ("query",               ""),
+            ("gameVersion",         ""),
+            ("devStates",           "1"),
+            ("devStates",           "2"),
+            ("devStatesExplicit",   "true"),
+            ("myFavorites",         "false"),
+            ("ignoreLibraries",     "true"),
+            ("ignoreClosedSource",  "false"),
+        ])
         .send().await?.text().await?;
     let batch = parse_cards(&html, &mut rank);
     let done = batch.len() < 20;
@@ -25,10 +37,18 @@ pub async fn scrape_all(
             let html = client
                 .get(format!("{}/Mods/LoadMoreThumbnails", BASE_URL))
                 .query(&[
-                    ("orderBy",         order_by),
-                    ("timeRange",       time_range),
-                    ("ignoreLibraries", "true"),
-                    ("page",            &page.to_string()),
+                    ("orderBy",             order_by),
+                    ("timeRange",           time_range),
+                    ("author",              ""),
+                    ("query",               ""),
+                    ("gameVersion",         ""),
+                    ("devStates",           "1"),
+                    ("devStates",           "2"),
+                    ("devStatesExplicit",   "true"),
+                    ("myFavorites",         "false"),
+                    ("ignoreLibraries",     "true"),
+                    ("ignoreClosedSource",  "false"),
+                    ("page",                &page.to_string()),
                 ])
                 .send().await?.text().await?;
             let batch = parse_cards(&html, &mut rank);
@@ -220,6 +240,26 @@ fn parse_cards(html: &str, rank: &mut i32) -> Vec<Mod> {
             })
         })
         .collect()
+}
+
+pub async fn resolve_download_url(
+    client: &reqwest::Client,
+    mod_page_url: &str,
+) -> Result<String, String> {
+    let html = client
+        .get(mod_page_url)
+        .send().await.map_err(|e| format!("Erro ao acessar {}: {}", mod_page_url, e))?
+        .text().await.map_err(|e| e.to_string())?;
+
+    let doc = Html::parse_document(&html);
+    let sel = Selector::parse("a.mod-download-trigger")
+        .map_err(|e| format!("Erro de seletor: {}", e))?;
+
+    let download_path = doc.select(&sel).next()
+        .and_then(|el| el.value().attr("href"))
+        .ok_or_else(|| format!("Link de download não encontrado em {}", mod_page_url))?;
+
+    Ok(format!("{}{}", BASE_URL, download_path))
 }
 
 #[cfg(test)]

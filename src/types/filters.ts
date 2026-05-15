@@ -1,4 +1,4 @@
-export type SortBy = "updated" | "popularity" | "name_asc" | "name_desc" | "game_version";
+export type SortBy = "popularity" | "score" | "latest" | "updated" | "downloads" | "favorites" | "name_asc" | "name_desc" | "game_version";
 export type TimeRange = "all-time" | "past-week" | "past-month" | "past-year";
 
 export interface SidebarFilters {
@@ -9,20 +9,21 @@ export interface SidebarFilters {
   gameVersion: string;   // empty = any
 }
 
-// sortBy values that map to scrape_rank (order depends on last sync params)
-export const SCRAPE_RANK_SORTS: SortBy[] = ["updated", "popularity"];
-
-export const SORT_OPTIONS: { value: SortBy; label: string; apiValue: string }[] = [
-  { value: "updated",      label: "Recentemente atualizado", apiValue: "updated" },
-  { value: "popularity",   label: "Popularidade",            apiValue: "popularity" },
-  { value: "name_asc",     label: "Nome A → Z",              apiValue: "popularity" },
-  { value: "name_desc",    label: "Nome Z → A",              apiValue: "popularity" },
-  { value: "game_version", label: "Versão do jogo",          apiValue: "popularity" },
+export const SORT_OPTIONS: { value: SortBy; apiValue: string }[] = [
+  { value: "popularity",   apiValue: "popularity" },
+  { value: "score",        apiValue: "score" },
+  { value: "latest",       apiValue: "latest" },
+  { value: "updated",      apiValue: "updated" },
+  { value: "downloads",    apiValue: "downloads" },
+  { value: "favorites",    apiValue: "favorites" },
+  { value: "name_asc",     apiValue: "popularity" },
+  { value: "name_desc",    apiValue: "popularity" },
+  { value: "game_version", apiValue: "popularity" },
 ];
 
-export const TIME_RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
-  { value: "all-time",    label: "Todo o período" },
-  { value: "past-week",   label: "Última semana" },
-  { value: "past-month",  label: "Último mês" },
-  { value: "past-year",   label: "Último ano" },
+export const TIME_RANGE_OPTIONS: { value: TimeRange }[] = [
+  { value: "all-time" },
+  { value: "past-week" },
+  { value: "past-month" },
+  { value: "past-year" },
 ];

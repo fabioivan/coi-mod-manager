@@ -121,9 +121,7 @@ pub async fn sync_mods(
 ) -> Result<(), String> {
     let order_by = order_by.unwrap_or_else(|| "popularity".into());
     let time_range = time_range.unwrap_or_else(|| "all-time".into());
-    tauri::async_runtime::spawn(async move {
-        run_scrape(&app, &order_by, &time_range).await;
-    });
+    run_scrape(&app, &order_by, &time_range).await;
     Ok(())
 }
 
@@ -159,7 +157,10 @@ pub async fn update_all_mods(
     let count = ids.len();
 
     for id in &ids {
-        download_and_extract(id, &folder).await?;
+        let mod_page_url = db.get_mod_page_url(id).await
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| format!("Mod id={} não encontrado no banco de dados", id))?;
+        download_and_extract(&mod_page_url, &folder).await?;
     }
 
     if count > 0 {
@@ -181,16 +182,15 @@ pub async fn update_all_mods(
     Ok(count)
 }
 
-const HUB_BASE: &str = "https://hub.coigame.com";
-
-async fn download_and_extract(mod_id: &str, mods_folder: &str) -> Result<(), String> {
-    let url = format!("{}/Mod/DownloadMod/{}", HUB_BASE, mod_id);
+async fn download_and_extract(mod_page_url: &str, mods_folder: &str) -> Result<(), String> {
     let client = reqwest::Client::builder()
         .user_agent("CoI-Mod-Manager/1.0")
         .build().map_err(|e| e.to_string())?;
 
+    let download_url = crate::scraper::resolve_download_url(&client, mod_page_url).await?;
+
     let bytes = client
-        .get(&url)
+        .get(&download_url)
         .send().await.map_err(|e| e.to_string())?
         .bytes().await.map_err(|e| e.to_string())?
         .to_vec();
@@ -213,7 +213,11 @@ pub async fn install_mod(
         .map_err(|e| e.to_string())?
         .ok_or("Pasta de mods não configurada. Acesse Configurações.")?;
 
-    download_and_extract(&mod_id, &folder).await?;
+    let mod_page_url = db.get_mod_page_url(&mod_id).await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("Mod id={} não encontrado no banco de dados", mod_id))?;
+
+    download_and_extract(&mod_page_url, &folder).await?;
     run_scan_installed(&app).await;
     Ok(())
 }
@@ -228,8 +232,73 @@ pub async fn update_mod(
         .map_err(|e| e.to_string())?
         .ok_or("Pasta de mods não configurada. Acesse Configurações.")?;
 
-    download_and_extract(&mod_id, &folder).await?;
+    let mod_page_url = db.get_mod_page_url(&mod_id).await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("Mod id={} não encontrado no banco de dados", mod_id))?;
+
+    download_and_extract(&mod_page_url, &folder).await?;
     run_scan_installed(&app).await;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn uninstall_mod(
+    app: tauri::AppHandle,
+    db: State<'_, Database>,
+    mod_id: String,
+) -> Result<(), String> {
+    let folder = db.get_setting("mods_folder").await
+        .map_err(|e| e.to_string())?
+        .ok_or("Pasta de mods não configurada. Acesse Configurações.")?;
+
+    let folder_path = std::path::Path::new(&folder);
+    if !folder_path.exists() {
+        return Err(format!("Pasta não encontrada: {}", folder));
+    }
+
+    let all_mods = db.get_all_mods().await.map_err(|e| e.to_string())?;
+    let mod_entry = all_mods.iter().find(|m| m.id == mod_id)
+        .ok_or_else(|| format!("Mod id={} não encontrado no banco de dados", mod_id))?;
+
+    let entries = std::fs::read_dir(folder_path).map_err(|e| e.to_string())?;
+    let mut found = false;
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_dir() { continue; }
+
+        let folder_name = path.file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+
+        let manifest_path = path.join("manifest.json");
+        if !manifest_path.exists() { continue; }
+        let Ok(manifest_str) = std::fs::read_to_string(&manifest_path) else { continue; };
+        let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&manifest_str) else { continue; };
+
+        let manifest_id = manifest["id"].as_str().unwrap_or("").to_lowercase();
+        let display_name = manifest["display_name"].as_str().unwrap_or("").to_lowercase();
+
+        let slug = mod_entry.url.split('/').last().unwrap_or("").to_lowercase();
+        let matched = slug == manifest_id
+            || slug == folder_name
+            || mod_entry.name.to_lowercase() == display_name
+            || mod_entry.name.to_lowercase().replace(' ', "-") == manifest_id;
+
+        if matched {
+            std::fs::remove_dir_all(&path).map_err(|e| format!("Erro ao remover {}: {}", path.display(), e))?;
+            found = true;
+            break;
+        }
+    }
+
+    if !found {
+        return Err(format!("Pasta do mod '{}' não encontrada em {}", mod_entry.name, folder));
+    }
+
+    db.set_uninstalled(&mod_id).await.map_err(|e| e.to_string())?;
+    let _ = app.emit("mods-updated", ());
     Ok(())
 }
 
@@ -268,14 +337,14 @@ pub async fn scan_installed_mods(
         let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&manifest_str) else { continue; };
 
         let manifest_id = manifest["id"].as_str().unwrap_or("").to_lowercase();
+        let display_name = manifest["display_name"].as_str().unwrap_or("").to_lowercase();
         let version = manifest["version"].as_str().unwrap_or("").to_string();
 
-        // Tenta casar com mod do DB pelo slug da URL ou pelo nome normalizado
         let matched = all_mods.iter().find(|m| {
             let slug = m.url.split('/').last().unwrap_or("").to_lowercase();
             slug == manifest_id
                 || slug == folder_name
-                || manifest_id == folder_name
+                || m.name.to_lowercase() == display_name
                 || m.name.to_lowercase().replace(' ', "-") == manifest_id
         });
 
@@ -337,13 +406,14 @@ async fn scan_installed_mods_inner(db: &Database) -> Result<(usize, usize), Stri
         let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&manifest_str) else { continue; };
 
         let manifest_id = manifest["id"].as_str().unwrap_or("").to_lowercase();
+        let display_name = manifest["display_name"].as_str().unwrap_or("").to_lowercase();
         let version = manifest["version"].as_str().unwrap_or("").to_string();
 
         let matched = all_mods.iter().find(|m| {
             let slug = m.url.split('/').last().unwrap_or("").to_lowercase();
             slug == manifest_id
                 || slug == folder_name
-                || manifest_id == folder_name
+                || m.name.to_lowercase() == display_name
                 || m.name.to_lowercase().replace(' ', "-") == manifest_id
         });
 

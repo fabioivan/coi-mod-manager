@@ -1,6 +1,7 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { useTranslation } from "react-i18next";
 import { Sidebar } from "@/components/Sidebar";
 import { TopBar } from "@/components/TopBar";
 import { ModList } from "@/pages/ModList";
@@ -13,6 +14,7 @@ function splitTags(category: string): string[] {
 }
 
 export default function App() {
+  const { i18n } = useTranslation();
   const [mods, setMods] = useState<Mod[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [installingIds, setInstallingIds] = useState<Set<string>>(new Set());
@@ -31,6 +33,11 @@ export default function App() {
 
     async function init() {
       try {
+        const lang = await invoke<string | null>("get_setting", { key: "language" });
+        if (lang) i18n.changeLanguage(lang);
+      } catch (_) {}
+
+      try {
         const result = await invoke<Mod[]>("get_mods");
         setMods(result);
         if (result.length === 0) setSyncing(true);
@@ -44,6 +51,10 @@ export default function App() {
         setSyncing(false);
       });
 
+      await listen<string>("mods-sync-error", (e) => {
+        console.error("Erro na sincronização dos mods:", e.payload);
+      });
+
       await listen<{ version: string; notes?: string }>("update-available", (e) => {
         setAppUpdate(e.payload);
       });
@@ -51,7 +62,20 @@ export default function App() {
 
     init();
     return () => { unlisten?.(); };
-  }, []);
+  }, [i18n]);
+
+  const prevSortRef = useRef(filters.sortBy);
+  const prevTimeRef = useRef(filters.timeRange);
+
+  useEffect(() => {
+    const sortChanged = filters.sortBy !== prevSortRef.current;
+    const timeChanged = filters.timeRange !== prevTimeRef.current;
+    prevSortRef.current = filters.sortBy;
+    prevTimeRef.current = filters.timeRange;
+    if (!sortChanged && !timeChanged) return;
+    if (mods.length === 0) return;
+    handleRefresh();
+  }, [filters.sortBy, filters.timeRange]);
 
   async function loadMods() {
     try {
@@ -68,8 +92,10 @@ export default function App() {
     const orderBy = option?.apiValue ?? "updated";
     try {
       await invoke("sync_mods", { orderBy, timeRange: filters.timeRange });
+      await loadMods();
     } catch (e) {
       console.error("Erro ao sincronizar:", e);
+    } finally {
       setSyncing(false);
     }
   }
@@ -110,6 +136,18 @@ export default function App() {
     }
   }
 
+  async function handleUninstall(mod: Mod) {
+    setInstallingIds((prev) => new Set([...prev, mod.id]));
+    try {
+      await invoke("uninstall_mod", { modId: mod.id });
+      await loadMods();
+    } catch (e) {
+      console.error("Erro ao desinstalar mod:", e);
+    } finally {
+      setInstallingIds((prev) => { const s = new Set(prev); s.delete(mod.id); return s; });
+    }
+  }
+
   const tags = useMemo(() => {
     const set = new Set<string>();
     mods.forEach((m) => splitTags(m.category).forEach((t) => set.add(t)));
@@ -139,27 +177,12 @@ export default function App() {
 
   const sortedMods = useMemo(() => {
     const arr = [...mods];
-    switch (filters.sortBy) {
-      case "updated":
-        arr.sort((a, b) => {
-          if (!a.updated_at && !b.updated_at) return 0;
-          if (!a.updated_at) return 1;
-          if (!b.updated_at) return -1;
-          return b.updated_at.localeCompare(a.updated_at);
-        });
-        break;
-      case "popularity":
-        arr.sort((a, b) => a.scrape_rank - b.scrape_rank);
-        break;
-      case "name_asc":
-        arr.sort((a, b) => a.name.localeCompare(b.name));
-        break;
-      case "name_desc":
-        arr.sort((a, b) => b.name.localeCompare(a.name));
-        break;
-      case "game_version":
-        arr.sort((a, b) => b.game_version.localeCompare(a.game_version, undefined, { numeric: true }));
-        break;
+    if (filters.sortBy === "name_asc") {
+      arr.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (filters.sortBy === "name_desc") {
+      arr.sort((a, b) => b.name.localeCompare(a.name));
+    } else {
+      arr.sort((a, b) => a.scrape_rank - b.scrape_rank);
     }
     return arr;
   }, [mods, filters.sortBy]);
@@ -195,6 +218,7 @@ export default function App() {
             filters={filters}
             onUpdate={handleUpdate}
             onInstall={handleInstall}
+            onUninstall={handleUninstall}
             syncing={syncing}
             installingIds={installingIds}
           />

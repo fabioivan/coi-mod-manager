@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { SidebarFilters, SORT_OPTIONS, TIME_RANGE_OPTIONS } from "@/types/filters";
 import { DEVSTATE_LABELS, DEVSTATE_STYLES } from "@/types/mod";
 
@@ -111,6 +112,27 @@ function CustomCheckbox({ checked, onChange, label, badge }: {
 }
 
 export function Sidebar({ tags, counts, total, gameVersions, filters, onFiltersChange }: SidebarProps) {
+  const { t } = useTranslation();
+
+  const SORT_LABELS: Record<string, string> = {
+    popularity: t("filters.popularity"),
+    score: t("filters.score"),
+    latest: t("filters.latest"),
+    updated: t("filters.updated"),
+    downloads: t("filters.downloads"),
+    favorites: t("filters.favorites"),
+    name_asc: t("filters.name_asc"),
+    name_desc: t("filters.name_desc"),
+    game_version: t("filters.game_version"),
+  };
+
+  const TIME_LABELS: Record<string, string> = {
+    "all-time": t("filters.time_all"),
+    "past-week": t("filters.time_week"),
+    "past-month": t("filters.time_month"),
+    "past-year": t("filters.time_year"),
+  };
+
   function update(patch: Partial<SidebarFilters>) {
     onFiltersChange({ ...filters, ...patch });
   }
@@ -133,9 +155,8 @@ export function Sidebar({ tags, counts, total, gameVersions, filters, onFiltersC
     }}>
       <div style={{ padding: "16px", overflowY: "auto", flex: 1 }}>
 
-        {/* Ordenar por + Período — mesma seção, igual ao site */}
         <div style={{ marginBottom: "20px" }}>
-          <h6 style={sectionH6}>Ordenar por</h6>
+          <h6 style={sectionH6}>{t("sidebar.sort_by")}</h6>
           <select
             style={selectStyle}
             value={filters.sortBy}
@@ -143,7 +164,7 @@ export function Sidebar({ tags, counts, total, gameVersions, filters, onFiltersC
           >
             {SORT_OPTIONS.map((o) => (
               <option key={o.value} value={o.value} style={{ backgroundColor: C.grey, color: C.lightGrey, textTransform: "uppercase" }}>
-                {o.label}
+                {SORT_LABELS[o.value]}
               </option>
             ))}
           </select>
@@ -155,16 +176,15 @@ export function Sidebar({ tags, counts, total, gameVersions, filters, onFiltersC
             >
               {TIME_RANGE_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value} style={{ backgroundColor: C.grey, color: C.lightGrey, textTransform: "uppercase" }}>
-                  {o.label}
+                  {TIME_LABELS[o.value]}
                 </option>
               ))}
             </select>
           </div>
         </div>
 
-        {/* Categorias */}
         <div style={{ marginBottom: "20px" }}>
-          <h6 style={sectionH6}>Categorias</h6>
+          <h6 style={sectionH6}>{t("sidebar.categories")}</h6>
           <div
             style={{
               ...filterItem,
@@ -173,7 +193,7 @@ export function Sidebar({ tags, counts, total, gameVersions, filters, onFiltersC
             }}
             onClick={() => update({ selectedTag: null })}
           >
-            <span style={{ flex: 1 }}>Todos</span>
+            <span style={{ flex: 1 }}>{t("sidebar.all")}</span>
             <span style={{ fontSize: "11px", color: C.metaGrey }}>{total}</span>
           </div>
           {tags.map((tag) => (
@@ -196,30 +216,28 @@ export function Sidebar({ tags, counts, total, gameVersions, filters, onFiltersC
           ))}
         </div>
 
-        {/* Estado de desenvolvimento */}
         <div style={{ marginBottom: "20px" }}>
-          <h6 style={sectionH6}>Estado</h6>
+          <h6 style={sectionH6}>{t("sidebar.state")}</h6>
           {([1, 2, 3, 4] as const).map((ds) => (
             <CustomCheckbox
               key={ds}
               checked={filters.devstates.includes(ds)}
               onChange={() => toggleDevstate(ds)}
-              label={DEVSTATE_LABELS[ds]}
+              label={t("mod." + DEVSTATE_LABELS[ds])}
               badge={DEVSTATE_STYLES[ds]}
             />
           ))}
         </div>
 
-        {/* Versão do jogo */}
         {gameVersions.length > 0 && (
           <div style={{ marginBottom: "20px" }}>
-            <h6 style={sectionH6}>Versão do jogo</h6>
+            <h6 style={sectionH6}>{t("sidebar.game_version")}</h6>
             <select
               style={selectStyle}
               value={filters.gameVersion}
               onChange={(e) => update({ gameVersion: e.target.value })}
             >
-              <option value="" style={{ backgroundColor: C.grey, color: C.lightGrey }}>Qualquer</option>
+              <option value="" style={{ backgroundColor: C.grey, color: C.lightGrey }}>{t("sidebar.any_version")}</option>
               {gameVersions.map((v) => (
                 <option key={v} value={v} style={{ backgroundColor: C.grey, color: C.lightGrey }}>{v}</option>
               ))}

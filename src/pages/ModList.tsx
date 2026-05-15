@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Mod, getModStatus } from "@/types/mod";
 import { SidebarFilters } from "@/types/filters";
 import { ModCard } from "@/components/ModCard";
@@ -9,6 +10,7 @@ interface ModListProps {
   filters: SidebarFilters;
   onUpdate: (mod: Mod) => void;
   onInstall: (mod: Mod) => void;
+  onUninstall: (mod: Mod) => void;
   syncing?: boolean;
   installingIds?: Set<string>;
 }
@@ -23,13 +25,9 @@ const C = {
 };
 
 type StatusFilter = "all" | "installed" | "outdated";
-const STATUS_LABELS: Record<StatusFilter, string> = {
-  all: "Todos",
-  installed: "Instalados",
-  outdated: "Desatualizados",
-};
 
-export function ModList({ mods, filters, onUpdate, onInstall, syncing, installingIds }: ModListProps) {
+export function ModList({ mods, filters, onUpdate, onInstall, onUninstall, syncing, installingIds }: ModListProps) {
+  const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
@@ -74,9 +72,9 @@ export function ModList({ mods, filters, onUpdate, onInstall, syncing, installin
             color: C.metaGrey,
             pointerEvents: "none",
           }} />
-          <input
-            type="text"
-            placeholder="Buscar mod..."
+            <input
+              type="text"
+              placeholder={t("modList.search_placeholder")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{
@@ -113,13 +111,13 @@ export function ModList({ mods, filters, onUpdate, onInstall, syncing, installin
                 textTransform: "uppercase",
               }}
             >
-              {STATUS_LABELS[f]}
+              {t(`modList.filter_${f}`)}
             </button>
           ))}
         </div>
 
         <span style={{ fontSize: "12px", color: C.metaGrey, marginLeft: "auto" }}>
-          {filtered.length} mods
+          {t("common.mods_count", { count: filtered.length })}
         </span>
       </div>
 
@@ -140,7 +138,7 @@ export function ModList({ mods, filters, onUpdate, onInstall, syncing, installin
             backdropFilter: "blur(1px)",
           }}>
             <Loader2 size={32} style={{ animation: "spin 0.8s linear infinite", color: "#e5ca5f" }} />
-            <span style={{ color: "#c6c6c6", fontSize: "14px", fontWeight: 600 }}>Sincronizando...</span>
+            <span style={{ color: "#c6c6c6", fontSize: "14px", fontWeight: 600 }}>{t("common.syncing")}</span>
           </div>
         )}
         {syncing && mods.length === 0 ? (
@@ -155,7 +153,7 @@ export function ModList({ mods, filters, onUpdate, onInstall, syncing, installin
             fontSize: "14px",
           }}>
             <Loader2 size={28} style={{ animation: "spin 0.8s linear infinite", color: C.lighterGrey }} />
-            <span>Sincronizando mods...</span>
+            <span>{t("common.syncing_mods")}</span>
           </div>
         ) : filtered.length === 0 ? (
           <div style={{
@@ -166,7 +164,7 @@ export function ModList({ mods, filters, onUpdate, onInstall, syncing, installin
             color: C.metaGrey,
             fontSize: "14px",
           }}>
-            Nenhum mod encontrado
+            {t("common.no_mods_found")}
           </div>
         ) : (
           <div style={{
@@ -180,7 +178,9 @@ export function ModList({ mods, filters, onUpdate, onInstall, syncing, installin
                 mod={mod}
                 onUpdate={onUpdate}
                 onInstall={onInstall}
+                onUninstall={onUninstall}
                 installing={installingIds?.has(mod.id) ?? false}
+                showUninstall={statusFilter === "installed"}
               />
             ))}
           </div>

@@ -4,7 +4,7 @@ mod models;
 mod scraper;
 
 use commands::{
-    get_mods, install_mod, run_scrape, sync_mods, update_all_mods, update_mod,
+    get_mods, install_mod, uninstall_mod, run_scrape, sync_mods, update_all_mods, update_mod,
     get_setting, set_setting, detect_mods_folder, pick_folder,
     scan_installed_mods, run_scan_installed,
     check_for_update, install_update, check_app_update_on_startup,
@@ -66,6 +66,7 @@ pub fn run() {
             update_mod,
             update_all_mods,
             install_mod,
+            uninstall_mod,
             get_setting,
             set_setting,
             detect_mods_folder,

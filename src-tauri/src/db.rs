@@ -241,6 +241,19 @@ impl Database {
         Ok(())
     }
 
+    pub async fn get_mod_page_url(&self, mod_id: &str) -> Result<Option<String>> {
+        let conn = self.0.lock().await;
+        match conn.query_row(
+            "SELECT url FROM mods WHERE id = ?1",
+            params![mod_id],
+            |r| r.get(0),
+        ) {
+            Ok(url) => Ok(Some(url)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
     pub async fn get_outdated_ids(&self) -> Result<Vec<String>> {
         let conn = self.0.lock().await;
         let mut stmt = conn.prepare(
