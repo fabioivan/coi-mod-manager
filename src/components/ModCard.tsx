@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Mod, getModStatus, DEVSTATE_LABELS, DEVSTATE_STYLES } from "@/types/mod";
 import { Download, RefreshCw, CheckCircle, Cpu, Loader2, Trash2 } from "lucide-react";
@@ -9,6 +10,7 @@ interface ModCardProps {
   onUninstall: (mod: Mod) => void;
   installing?: boolean;
   showUninstall?: boolean;
+  onSelectMod?: (id: string) => void;
 }
 
 const C = {
@@ -47,23 +49,32 @@ const tag: React.CSSProperties = {
   flexShrink: 0,
 };
 
-export function ModCard({ mod, onUpdate, onInstall, onUninstall, installing = false, showUninstall = false }: ModCardProps) {
+export function ModCard({ mod, onUpdate, onInstall, onUninstall, installing = false, showUninstall = false, onSelectMod }: ModCardProps) {
   const { t } = useTranslation();
+  const [hovered, setHovered] = useState(false);
   const status = getModStatus(mod);
   const tags = mod.category ? mod.category.split(",").map((t) => t.trim()).filter(Boolean) : [];
   const devstyle = DEVSTATE_STYLES[mod.devstate];
   const devlabel = t("mod." + DEVSTATE_LABELS[mod.devstate]);
 
   return (
-    <div style={{
-      display: "flex",
-      flexDirection: "column",
-      backgroundColor: C.grey,
-      borderRadius: "10px",
-      overflow: "hidden",
-      boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
-      minHeight: "210px",
-    }}>
+    <div
+      onClick={() => onSelectMod?.(mod.id)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        backgroundColor: hovered ? "#4b4b4b" : C.grey,
+        borderRadius: "10px",
+        overflow: "hidden",
+        boxShadow: hovered ? "0 4px 12px rgba(0,0,0,0.45)" : "0 2px 6px rgba(0,0,0,0.3)",
+        transform: hovered ? "translateY(-2px)" : "none",
+        transition: "transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease",
+        cursor: onSelectMod ? "pointer" : "default",
+        minHeight: "210px",
+      }}
+    >
       {/* Content area: icon + right column */}
       <div style={{
         display: "flex",
@@ -268,7 +279,10 @@ export function ModCard({ mod, onUpdate, onInstall, onUninstall, installing = fa
                 fontWeight: 700, padding: "2px 8px", borderRadius: "2px",
                 border: "none", cursor: "pointer", textTransform: "uppercase",
               }}
-              onClick={() => onUninstall(mod)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onUninstall(mod);
+              }}
             >
               <Trash2 size={10} />
               {t("modCard.btn_uninstall")}
@@ -288,7 +302,10 @@ export function ModCard({ mod, onUpdate, onInstall, onUninstall, installing = fa
                 fontWeight: 700, padding: "2px 8px", borderRadius: "2px",
                 border: "none", cursor: "pointer", textTransform: "uppercase",
               }}
-              onClick={() => onUpdate(mod)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onUpdate(mod);
+              }}
             >
               <RefreshCw size={10} />
               {t("modCard.btn_update")}
@@ -302,7 +319,10 @@ export function ModCard({ mod, onUpdate, onInstall, onUninstall, installing = fa
                 fontWeight: 700, padding: "2px 8px", borderRadius: "2px",
                 border: "none", cursor: "pointer", textTransform: "uppercase",
               }}
-              onClick={() => onInstall(mod)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onInstall(mod);
+              }}
             >
               <Download size={10} />
               {t("modCard.btn_install")}

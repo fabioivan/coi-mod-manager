@@ -41,3 +41,61 @@ export const DEVSTATE_STYLES: Record<number, { bg: string; color: string }> = {
   3: { bg: "#7a5a00", color: "#ffe08a" },
   4: { bg: "#6e2020", color: "#f5b7b7" },
 };
+
+export interface ModCapability {
+  name: string;
+  severity: string;
+  description: string;
+}
+
+export interface Announcement {
+  title: string;
+  date: string;
+  version: string;
+  content_html: string;
+}
+
+export interface ModVersion {
+  version: string;
+  latest: boolean;
+  download_url: string;
+  downloads: number;
+  game_version: string;
+  released_date: string;
+  file_size: string;
+  license: string;
+  changelog: string;
+}
+
+export interface ChangelogEntry {
+  version: string;
+  date: string;
+  text: string;
+}
+
+export interface ModDetails {
+  id: string;
+  name: string;
+  author: string;
+  short_description: string;
+  version_available: string;
+  updated_at: string;
+  license: string | null;
+  source_code_url: string | null;
+  zip_file_size: string | null;
+  game_versions: string;
+  save_game_add_ok: boolean;
+  save_game_remove_ok: boolean;
+  downloads: number;
+  favorites: number;
+  approval_pct: number;
+  description_html: string;
+  screenshots: string[];
+  websites: string[];
+  tags: string[];
+  capabilities: ModCapability[];
+  announcements: Announcement[];
+  versions: ModVersion[];
+  changelogs: ChangelogEntry[];
+  dependencies: string;
+}

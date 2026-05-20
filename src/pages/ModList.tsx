@@ -11,6 +11,7 @@ interface ModListProps {
   onUpdate: (mod: Mod) => void;
   onInstall: (mod: Mod) => void;
   onUninstall: (mod: Mod) => void;
+  onSelectMod?: (id: string) => void;
   syncing?: boolean;
   installingIds?: Set<string>;
 }
@@ -26,7 +27,7 @@ const C = {
 
 type StatusFilter = "all" | "installed" | "outdated";
 
-export function ModList({ mods, filters, onUpdate, onInstall, onUninstall, syncing, installingIds }: ModListProps) {
+export function ModList({ mods, filters, onUpdate, onInstall, onUninstall, onSelectMod, syncing, installingIds }: ModListProps) {
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -179,6 +180,7 @@ export function ModList({ mods, filters, onUpdate, onInstall, onUninstall, synci
                 onUpdate={onUpdate}
                 onInstall={onInstall}
                 onUninstall={onUninstall}
+                onSelectMod={onSelectMod}
                 installing={installingIds?.has(mod.id) ?? false}
                 showUninstall={statusFilter === "installed"}
               />

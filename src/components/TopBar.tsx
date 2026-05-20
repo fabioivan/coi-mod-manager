@@ -11,8 +11,8 @@ interface TopBarProps {
   onRefresh: () => void;
   onUpdateAll: () => void;
   loading: boolean;
-  view: "mods" | "settings";
-  onViewChange: (v: "mods" | "settings") => void;
+  view: "mods" | "settings" | "details";
+  onViewChange: (v: "mods" | "settings" | "details") => void;
   appUpdate?: UpdateInfo | null;
   onInstallUpdate?: () => void;
 }

@@ -11,7 +11,16 @@
     "no_mods_found": "No mods found",
     "mods_count": "{{count}} mod",
     "mods_count_plural": "{{count}} mods",
-    "detecting": "Detecting..."
+    "detecting": "Detecting...",
+    "loading_details": "Loading mod details...",
+    "error_loading": "Failed to load mod details",
+    "btn_back": "Back",
+    "btn_retry": "Retry",
+    "downloads": "Downloads",
+    "favorites": "Favorites",
+    "approval": "Approval",
+    "updated": "Updated",
+    "released": "Released"
   },
   "settings": {
     "title": "Settings",
@@ -103,5 +112,33 @@
     "tooltip_back": "Back",
     "tooltip_settings": "Settings",
     "btn_update_all": "Update all"
+  },
+  "modDetail": {
+    "path_details": "Mod Details",
+    "source_code": "Source Code",
+    "save_add": "Add to Save:",
+    "save_remove": "Remove from Save:",
+    "save_ok": "Compatible ✓",
+    "save_no": "Not recommended ✗",
+    "size": "File Size",
+    "tab_info": "Information",
+    "tab_announcements": "Announcements",
+    "tab_versions": "Versions",
+    "tab_changelog": "Changelog",
+    "tab_dependencies": "Dependencies",
+    "gallery": "Gallery",
+    "websites": "Websites",
+    "capabilities": "Capabilities",
+    "no_announcements": "No announcements posted for this mod.",
+    "no_dependencies": "This mod does not have any dependencies on other mods listed in the Hub.",
+    "version_title": "Version {{version}}",
+    "download_this": "Download this version",
+    "release_notes": "Version Notes / Changes",
+    "no_release_notes": "No release notes provided.",
+    "select_version": "Select a version to see details",
+    "no_changelogs": "No historical changelog available.",
+    "status_installed": "Installed (v{{version}})",
+    "status_outdated": "Update available (Installed: v{{installed}})",
+    "status_not_installed": "Not Installed"
   }
 }

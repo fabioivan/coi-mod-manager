@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { TopBar } from "@/components/TopBar";
 import { ModList } from "@/pages/ModList";
 import { Settings } from "@/pages/Settings";
+import { ModDetail } from "@/pages/ModDetail";
 import { Mod } from "@/types/mod";
 import { SidebarFilters, SORT_OPTIONS } from "@/types/filters";
 
@@ -18,7 +19,8 @@ export default function App() {
   const [mods, setMods] = useState<Mod[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [installingIds, setInstallingIds] = useState<Set<string>>(new Set());
-  const [view, setView] = useState<"mods" | "settings">("mods");
+  const [view, setView] = useState<"mods" | "settings" | "details">("mods");
+  const [selectedModId, setSelectedModId] = useState<string | null>(null);
   const [appUpdate, setAppUpdate] = useState<{ version: string; notes?: string } | null>(null);
   const [filters, setFilters] = useState<SidebarFilters>({
     sortBy: "updated",
@@ -219,8 +221,22 @@ export default function App() {
             onUpdate={handleUpdate}
             onInstall={handleInstall}
             onUninstall={handleUninstall}
+            onSelectMod={(id) => {
+              setSelectedModId(id);
+              setView("details");
+            }}
             syncing={syncing}
             installingIds={installingIds}
+          />
+        ) : view === "details" && selectedModId ? (
+          <ModDetail
+            modId={selectedModId}
+            onBack={() => setView("mods")}
+            onUpdate={handleUpdate}
+            onInstall={handleInstall}
+            onUninstall={handleUninstall}
+            installingIds={installingIds}
+            allMods={mods}
           />
         ) : (
           <Settings />

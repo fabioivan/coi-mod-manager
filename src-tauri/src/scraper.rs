@@ -262,6 +262,367 @@ pub async fn resolve_download_url(
     Ok(format!("{}{}", BASE_URL, download_path))
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct ModDetails {
+    pub id: String,
+    pub name: String,
+    pub author: String,
+    pub short_description: String,
+    pub version_available: String,
+    pub updated_at: String,
+    pub license: Option<String>,
+    pub source_code_url: Option<String>,
+    pub zip_file_size: Option<String>,
+    pub game_versions: String,
+    pub save_game_add_ok: bool,
+    pub save_game_remove_ok: bool,
+    pub downloads: i64,
+    pub favorites: i64,
+    pub approval_pct: i32,
+    pub description_html: String,
+    pub screenshots: Vec<String>,
+    pub websites: Vec<String>,
+    pub tags: Vec<String>,
+    pub capabilities: Vec<ModCapability>,
+    pub announcements: Vec<Announcement>,
+    pub versions: Vec<ModVersion>,
+    pub changelogs: Vec<ChangelogEntry>,
+    pub dependencies: String,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct ModCapability {
+    pub name: String,
+    pub severity: String,
+    pub description: String,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct Announcement {
+    pub title: String,
+    pub date: String,
+    pub version: String,
+    pub content_html: String,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct ModVersion {
+    pub version: String,
+    pub latest: bool,
+    pub download_url: String,
+    pub downloads: i64,
+    pub game_version: String,
+    pub released_date: String,
+    pub file_size: String,
+    pub license: String,
+    pub changelog: String,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct ChangelogEntry {
+    pub version: String,
+    pub date: String,
+    pub text: String,
+}
+
+pub async fn scrape_mod_details(
+    client: &reqwest::Client,
+    mod_url: &str,
+) -> Result<ModDetails, String> {
+    let html = client
+        .get(mod_url)
+        .send().await.map_err(|e| format!("Erro ao carregar mod {}: {}", mod_url, e))?
+        .text().await.map_err(|e| e.to_string())?;
+
+    let doc = Html::parse_document(&html);
+
+    let id = mod_url.split('/')
+        .nth(4)
+        .ok_or_else(|| "URL de mod inválida".to_string())?
+        .to_string();
+
+    let h1_sel = Selector::parse(".mv2-header-center h1").unwrap();
+    let version_tag_sel = Selector::parse(".mv2-header-center h1 span.mod-card-tag").unwrap();
+    let author_sel = Selector::parse(".mv2-header-center .text-muted a").unwrap();
+    let short_desc_sel = Selector::parse(".mv2-header-center .mv2-short-desc").unwrap();
+    
+    let info_pills_sel = Selector::parse(".mv2-header-center .info-pill").unwrap();
+    let download_count_sel = Selector::parse("#downloadCountD").unwrap();
+    
+    let game_versions_sel = Selector::parse(".mv2-meta-bar .mv2-meta-item strong").unwrap();
+    let save_compat_sel = Selector::parse(".mv2-save-compat").unwrap();
+    let vote_percentage_sel = Selector::parse("#votePercentageD").unwrap();
+    let favorites_count_sel = Selector::parse("#favoritesCount").unwrap();
+
+    let tab_info_sel = Selector::parse("#tab-info").unwrap();
+    let links_table_tr_sel = Selector::parse(".mv2-links-table tr").unwrap();
+    let tags_sel = Selector::parse(".mod-tags-row a.mod-tag").unwrap();
+    let description_sel = Selector::parse(".description").unwrap();
+
+    let full_h1_text = doc.select(&h1_sel).next().map(|el| el.text().collect::<String>()).unwrap_or_default();
+    let version_available = doc.select(&version_tag_sel).next()
+        .map(|el| el.text().collect::<String>().trim().trim_start_matches('v').to_string())
+        .unwrap_or_default();
+    
+    let name = if !version_available.is_empty() {
+        full_h1_text.replace(&format!("v{}", version_available), "").trim().to_string()
+    } else {
+        full_h1_text.trim().to_string()
+    };
+
+    let author = doc.select(&author_sel).next()
+        .map(|el| el.text().collect::<String>().trim().to_string())
+        .unwrap_or_default();
+
+    let short_description = doc.select(&short_desc_sel).next()
+        .map(|el| el.text().collect::<String>().trim().to_string())
+        .unwrap_or_default();
+
+    let mut license = None;
+    let mut source_code_url = None;
+    for pill in doc.select(&info_pills_sel) {
+        let title = pill.value().attr("title").unwrap_or("");
+        if title == "License" {
+            license = Some(pill.text().collect::<String>().trim().to_string());
+        } else if title == "Source code" {
+            source_code_url = pill.value().attr("href").map(|h| h.to_string());
+        }
+    }
+
+    let file_size_sel = Selector::parse(".mv2-file-size strong").unwrap();
+    let zip_file_size = doc.select(&file_size_sel).next()
+        .map(|el| el.text().collect::<String>().trim().to_string());
+
+    let downloads = doc.select(&download_count_sel).next()
+        .and_then(|el| el.text().collect::<String>().trim().replace(',', "").parse::<i64>().ok())
+        .unwrap_or(0);
+
+    let game_versions = doc.select(&game_versions_sel).next()
+        .map(|el| el.text().collect::<String>().trim().to_string())
+        .unwrap_or_default();
+
+    let save_compat_text = doc.select(&save_compat_sel).next()
+        .map(|el| el.text().collect::<String>())
+        .unwrap_or_default();
+    let save_game_add_ok = save_compat_text.contains("Add ✓") || save_compat_text.contains("Add \u{2713}");
+    let save_game_remove_ok = save_compat_text.contains("Remove ✓") || save_compat_text.contains("Remove \u{2713}");
+
+    let approval_pct = doc.select(&vote_percentage_sel).next()
+        .and_then(|el| el.text().collect::<String>().trim().trim_end_matches('%').parse::<i32>().ok())
+        .unwrap_or(-1);
+    
+    let favorites = doc.select(&favorites_count_sel).next()
+        .and_then(|el| el.text().collect::<String>().trim().replace(',', "").parse::<i64>().ok())
+        .unwrap_or(0);
+
+    let mut websites = Vec::new();
+    for tr in doc.select(&links_table_tr_sel) {
+        let cells: Vec<_> = tr.select(&Selector::parse("td").unwrap()).collect();
+        if cells.len() >= 2 {
+            let label = cells[0].text().collect::<String>().trim().to_string();
+            if label == "Websites" || label == "Source code" {
+                for a in cells[1].select(&Selector::parse("a").unwrap()) {
+                    if let Some(href) = a.value().attr("href") {
+                        websites.push(href.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    let tags = doc.select(&tags_sel)
+        .map(|el| el.text().collect::<String>().trim().to_string())
+        .collect::<Vec<_>>();
+
+    let rewrite_urls = |html: &str| -> String {
+        html.replace("src=\"/", "src=\"https://hub.coigame.com/")
+            .replace("data-full-src=\"/", "data-full-src=\"https://hub.coigame.com/")
+            .replace("href=\"/", "href=\"https://hub.coigame.com/")
+    };
+
+    let mut description_html = String::new();
+    let mut screenshots = Vec::new();
+    if let Some(tab_info) = doc.select(&tab_info_sel).next() {
+        if let Some(desc_el) = tab_info.select(&description_sel).next() {
+            let raw_desc_html = desc_el.html();
+            description_html = rewrite_urls(&raw_desc_html);
+
+            let img_sel = Selector::parse("img").unwrap();
+            for img in desc_el.select(&img_sel) {
+                if let Some(src) = img.value().attr("src") {
+                    let abs_src = if src.starts_with("http") { src.to_string() } else { format!("https://hub.coigame.com{}", src) };
+                    screenshots.push(abs_src);
+                }
+            }
+        }
+    }
+
+    let mut capabilities = Vec::new();
+    let cap_dt_sel = Selector::parse("#capabilitiesInfoModal dl.capability-list dt").unwrap();
+    let cap_dd_sel = Selector::parse("#capabilitiesInfoModal dl.capability-list dd").unwrap();
+    let mut dds = doc.select(&cap_dd_sel);
+    for dt in doc.select(&cap_dt_sel) {
+        if let Some(badge) = dt.select(&Selector::parse(".badge").unwrap()).next() {
+            let name = badge.text().collect::<String>().trim().to_string();
+            let cls = badge.value().attr("class").unwrap_or("");
+            let severity = if cls.contains("text-bg-warning") {
+                "notable".to_string()
+            } else if cls.contains("text-bg-danger") {
+                "concerning".to_string()
+            } else {
+                "info".to_string()
+            };
+            let description = dds.next()
+                .map(|el| el.text().collect::<String>().trim().to_string())
+                .unwrap_or_default();
+            
+            capabilities.push(ModCapability { name, severity, description });
+        }
+    }
+
+    let mut announcements = Vec::new();
+    let announce_item_sel = Selector::parse("#tab-announcements .darkerGreyBg.p-3.rounded.mb-3").unwrap();
+    for ann in doc.select(&announce_item_sel) {
+        let title = ann.select(&Selector::parse("h4.mb-1").unwrap()).next()
+            .map(|el| el.text().collect::<String>().trim().to_string())
+            .unwrap_or_default();
+        
+        let mut version = String::new();
+        if let Some(pill) = ann.select(&Selector::parse("small.text-muted span.info-pill").unwrap()).next() {
+            version = pill.text().collect::<String>().trim().to_string();
+        }
+
+        let full_date_text = ann.select(&Selector::parse("small.text-muted").unwrap()).next()
+            .map(|el| el.text().collect::<String>())
+            .unwrap_or_default();
+        let date = full_date_text.replace(&version, "").trim().to_string();
+
+        let desc_el = ann.select(&description_sel).next();
+        let content_html = desc_el.map(|el| rewrite_urls(&el.html())).unwrap_or_default();
+
+        announcements.push(Announcement { title, date, version, content_html });
+    }
+
+    let mut versions = Vec::new();
+    let version_pane_sel = Selector::parse("#tab-versions .versionPane").unwrap();
+    for pane in doc.select(&version_pane_sel) {
+        let v_h4 = pane.select(&Selector::parse("h4").unwrap()).next()
+            .map(|el| el.text().collect::<String>().trim().to_string())
+            .unwrap_or_default();
+        if v_h4.is_empty() { continue; }
+
+        let latest = pane.select(&Selector::parse(".info-pill").unwrap()).next()
+            .map(|el| el.text().collect::<String>().trim().to_string() == "Latest")
+            .unwrap_or(false);
+
+        let download_url = pane.select(&Selector::parse(".mod-download-trigger").unwrap()).next()
+            .and_then(|el| el.value().attr("href"))
+            .map(|h| format!("https://hub.coigame.com{}", h))
+            .unwrap_or_default();
+
+        let v_download_count_sel = Selector::parse(".mv2-compound-count").unwrap();
+        let downloads = pane.select(&v_download_count_sel).next()
+            .and_then(|el| el.text().collect::<String>().trim().replace(',', "").parse::<i64>().ok())
+            .unwrap_or(0);
+
+        let mut v_game_version = String::new();
+        let mut v_released_date = String::new();
+        let mut v_file_size = String::new();
+        let mut v_license = String::new();
+
+        let meta_tr_sel = Selector::parse(".mv2-version-meta tr").unwrap();
+        for tr in pane.select(&meta_tr_sel) {
+            let cells: Vec<_> = tr.select(&Selector::parse("td").unwrap()).collect();
+            if cells.len() >= 2 {
+                let key = cells[0].text().collect::<String>().trim().to_string();
+                let val = cells[1].text().collect::<String>().trim().to_string();
+                if key.contains("Game version") {
+                    v_game_version = val;
+                } else if key.contains("Released") {
+                    v_released_date = val;
+                } else if key.contains("File size") {
+                    v_file_size = val;
+                } else if key.contains("License") {
+                    v_license = val;
+                }
+            }
+        }
+
+        let changelog_pre_sel = Selector::parse("pre").unwrap();
+        let changelog = pane.select(&changelog_pre_sel).next()
+            .map(|el| el.text().collect::<String>().trim().to_string())
+            .unwrap_or_default();
+
+        versions.push(ModVersion {
+            version: v_h4,
+            latest,
+            download_url,
+            downloads,
+            game_version: v_game_version,
+            released_date: v_released_date,
+            file_size: v_file_size,
+            license: v_license,
+            changelog,
+        });
+    }
+
+    let mut changelogs = Vec::new();
+    let changelog_item_sel = Selector::parse("#tab-changelog .darkerGreyBg.p-3.rounded.mb-3").unwrap();
+    for ch in doc.select(&changelog_item_sel) {
+        let full_title = ch.select(&Selector::parse("h4.mb-2").unwrap()).next()
+            .map(|el| el.text().collect::<String>().trim().to_string())
+            .unwrap_or_default();
+        if full_title.is_empty() { continue; }
+
+        let parts: Vec<&str> = full_title.split('|').collect();
+        let version = parts.first().map(|s| s.trim().to_string()).unwrap_or_default();
+        let date = parts.get(1).map(|s| s.trim().to_string()).unwrap_or_default();
+
+        let text = ch.select(&Selector::parse("pre").unwrap()).next()
+            .map(|el| el.text().collect::<String>().trim().to_string())
+            .unwrap_or_default();
+
+        changelogs.push(ChangelogEntry { version, date, text });
+    }
+
+    let tab_dependencies_sel = Selector::parse("#tab-dependencies").unwrap();
+    let dependencies = doc.select(&tab_dependencies_sel).next()
+        .map(|el| el.text().collect::<String>().trim().to_string())
+        .unwrap_or_else(|| "Este mod não tem dependências.".to_string());
+
+    let updated_at = doc.select(&Selector::parse(".mv2-header-center span.time-ago").unwrap()).next()
+        .and_then(|el| el.value().attr("data-utc-date"))
+        .map(|s| s.to_string())
+        .unwrap_or_default();
+
+    Ok(ModDetails {
+        id,
+        name,
+        author,
+        short_description,
+        version_available,
+        updated_at,
+        license,
+        source_code_url,
+        zip_file_size,
+        game_versions,
+        save_game_add_ok,
+        save_game_remove_ok,
+        downloads,
+        favorites,
+        approval_pct,
+        description_html,
+        screenshots,
+        websites,
+        tags,
+        capabilities,
+        announcements,
+        versions,
+        changelogs,
+        dependencies,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

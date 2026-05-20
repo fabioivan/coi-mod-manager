@@ -11,7 +11,16 @@
     "no_mods_found": "Nenhum mod encontrado",
     "mods_count": "{{count}} mods",
     "mods_count_plural": "{{count}} mods",
-    "detecting": "Detectando..."
+    "detecting": "Detectando...",
+    "loading_details": "Carregando detalhes do mod...",
+    "error_loading": "Falha ao carregar detalhes do mod",
+    "btn_back": "Voltar",
+    "btn_retry": "Tentar Novamente",
+    "downloads": "Downloads",
+    "favorites": "Favoritos",
+    "approval": "Aprovação",
+    "updated": "Atualizado em",
+    "released": "Lançado em"
   },
   "settings": {
     "title": "Configurações",
@@ -103,5 +112,33 @@
     "tooltip_back": "Voltar",
     "tooltip_settings": "Configurações",
     "btn_update_all": "Atualizar tudo"
+  },
+  "modDetail": {
+    "path_details": "Detalhes do Mod",
+    "source_code": "Código Fonte",
+    "save_add": "Adicionar ao Save:",
+    "save_remove": "Remover do Save:",
+    "save_ok": "Compatível ✓",
+    "save_no": "Não recomendado ✗",
+    "size": "Tamanho ZIP",
+    "tab_info": "Informações",
+    "tab_announcements": "Anúncios",
+    "tab_versions": "Versões",
+    "tab_changelog": "Histórico de Alterações",
+    "tab_dependencies": "Dependências",
+    "gallery": "Galeria",
+    "websites": "Sites do Mod",
+    "capabilities": "Capacidades do Mod",
+    "no_announcements": "Nenhum anúncio feito para este mod.",
+    "no_dependencies": "Este mod não tem dependências de outros mods listados no Hub.",
+    "version_title": "Versão {{version}}",
+    "download_this": "Baixar esta Versão",
+    "release_notes": "Notas de Versão / Mudanças",
+    "no_release_notes": "Nenhuma nota de versão provida.",
+    "select_version": "Selecione uma versão para ver detalhes",
+    "no_changelogs": "Nenhum histórico de alterações disponível.",
+    "status_installed": "Instalado (v{{version}})",
+    "status_outdated": "Atualização Disponível (Instalado: v{{installed}})",
+    "status_not_installed": "Não Instalado"
   }
 }

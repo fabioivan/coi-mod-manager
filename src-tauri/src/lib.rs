@@ -7,7 +7,7 @@ use commands::{
     get_mods, install_mod, uninstall_mod, run_scrape, sync_mods, update_all_mods, update_mod,
     get_setting, set_setting, detect_mods_folder, pick_folder,
     scan_installed_mods, run_scan_installed,
-    check_for_update, install_update, check_app_update_on_startup,
+    check_for_update, install_update, check_app_update_on_startup, get_mod_details,
 };
 use db::Database;
 use tauri::Manager;
@@ -74,6 +74,7 @@ pub fn run() {
             scan_installed_mods,
             check_for_update,
             install_update,
+            get_mod_details,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

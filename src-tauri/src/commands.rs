@@ -431,3 +431,18 @@ async fn scan_installed_mods_inner(db: &Database) -> Result<(usize, usize), Stri
 
     Ok((found_ids.len(), total))
 }
+
+#[tauri::command]
+pub async fn get_mod_details(
+    db: State<'_, Database>,
+    mod_id: String,
+) -> Result<crate::scraper::ModDetails, String> {
+    let mod_page_url = db.get_mod_page_url(&mod_id).await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("Mod id={} não encontrado no banco", mod_id))?;
+    let client = reqwest::Client::builder()
+        .user_agent("CoI-Mod-Manager/1.0")
+        .build()
+        .map_err(|e| e.to_string())?;
+    crate::scraper::scrape_mod_details(&client, &mod_page_url).await
+}
