@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Mod, getModStatus, DEVSTATE_LABELS, DEVSTATE_STYLES } from "@/types/mod";
 import { Download, RefreshCw, CheckCircle, Cpu, Loader2, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface ModCardProps {
   mod: Mod;
@@ -272,21 +273,18 @@ export function ModCard({ mod, onUpdate, onInstall, onUninstall, installing = fa
             </div>
           )}
           {showUninstall && status === "installed" && !installing && (
-            <button
-              style={{
-                display: "flex", alignItems: "center", gap: "4px",
-                fontSize: "11px", backgroundColor: "#6e2020", color: "#f5b7b7",
-                fontWeight: 700, padding: "2px 8px", borderRadius: "2px",
-                border: "none", cursor: "pointer", textTransform: "uppercase",
-              }}
+            <Button
+              size="sm"
+              style={{ padding: "6px 14px", height: "auto" }}
+              className="bg-[#6e2020] text-[#f5b7b7] hover:bg-[#6e2020]/90 border-0 text-[11px] font-bold uppercase rounded-sm gap-1.5"
               onClick={(e) => {
                 e.stopPropagation();
                 onUninstall(mod);
               }}
             >
-              <Trash2 size={10} />
+              <Trash2 size={11} />
               {t("modCard.btn_uninstall")}
-            </button>
+            </Button>
           )}
           {installing && (
             <div style={{ display: "flex", alignItems: "center", gap: "4px", color: C.yellow, fontSize: "11px", fontWeight: 600 }}>
@@ -295,38 +293,32 @@ export function ModCard({ mod, onUpdate, onInstall, onUninstall, installing = fa
             </div>
           )}
           {!installing && status === "outdated" && (
-            <button
-              style={{
-                display: "flex", alignItems: "center", gap: "4px",
-                fontSize: "11px", backgroundColor: C.yellow, color: C.borderGrey,
-                fontWeight: 700, padding: "2px 8px", borderRadius: "2px",
-                border: "none", cursor: "pointer", textTransform: "uppercase",
-              }}
+            <Button
+              size="sm"
+              style={{ padding: "6px 14px", height: "auto" }}
+              className="text-[11px] font-bold uppercase rounded-sm gap-1"
               onClick={(e) => {
                 e.stopPropagation();
                 onUpdate(mod);
               }}
             >
-              <RefreshCw size={10} />
+              <RefreshCw size={11} />
               {t("modCard.btn_update")}
-            </button>
+            </Button>
           )}
           {!installing && status === "not_installed" && (
-            <button
-              style={{
-                display: "flex", alignItems: "center", gap: "4px",
-                fontSize: "11px", backgroundColor: C.yellow, color: C.borderGrey,
-                fontWeight: 700, padding: "2px 8px", borderRadius: "2px",
-                border: "none", cursor: "pointer", textTransform: "uppercase",
-              }}
+            <Button
+              size="sm"
+              style={{ padding: "6px 14px", height: "auto" }}
+              className="text-[11px] font-bold uppercase rounded-sm gap-1"
               onClick={(e) => {
                 e.stopPropagation();
                 onInstall(mod);
               }}
             >
-              <Download size={10} />
+              <Download size={11} />
               {t("modCard.btn_install")}
-            </button>
+            </Button>
           )}
         </div>
       </div>

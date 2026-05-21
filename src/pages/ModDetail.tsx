@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "react-i18next";
 import { ModDetails, Mod, getModStatus } from "@/types/mod";
@@ -19,8 +19,10 @@ import {
   Loader2,
   Lock,
   Code,
-  Eye
+  Eye,
+  ChevronUp,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface ModDetailProps {
   modId: string;
@@ -59,6 +61,8 @@ export function ModDetail({
   const [activeTab, setActiveTab] = useState<"info" | "announcements" | "versions" | "changelog" | "dependencies">("info");
   const [selectedVersionIndex, setSelectedVersionIndex] = useState<number>(0);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   // Encontra o mod correspondente na lista local para sincronizar estados de instalação
   const localMod = useMemo(() => {
@@ -67,6 +71,18 @@ export function ModDetail({
 
   const isInstalling = installingIds.has(modId);
   const localStatus = localMod ? getModStatus(localMod) : "not_installed";
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => setShowScrollTop(el.scrollTop > 400);
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  function scrollToTop() {
+    scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   useEffect(() => {
     async function fetchDetails() {
@@ -103,18 +119,16 @@ export function ModDetail({
         <h3 style={{ color: C.lightGrey, fontSize: "18px", fontWeight: 600 }}>{t("common.error_loading", "Erro ao carregar")}</h3>
         <p style={{ color: C.metaGrey, fontSize: "14px", textAlign: "center", maxWidth: "480px" }}>{error || t("common.unknown_error", "Erro desconhecido")}</p>
         <div style={{ display: "flex", gap: "12px", marginTop: "10px" }}>
-          <button
+          <Button
             onClick={onBack}
-            style={{
-              display: "flex", alignItems: "center", gap: "6px", fontSize: "13px",
-              backgroundColor: C.grey, color: C.lightGrey, padding: "8px 16px",
-              borderRadius: "4px", border: "none", cursor: "pointer", fontWeight: 600
-            }}
+            variant="secondary"
+            size="sm"
+            style={{ padding: "6px 14px", height: "auto" }}
           >
             <ArrowLeft size={14} />
             {t("common.btn_back", "Voltar")}
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={async () => {
               setLoading(true);
               setError(null);
@@ -127,13 +141,11 @@ export function ModDetail({
                 setLoading(false);
               }
             }}
-            style={{
-              fontSize: "13px", backgroundColor: C.yellow, color: C.borderGrey,
-              padding: "8px 16px", borderRadius: "4px", border: "none", cursor: "pointer", fontWeight: 700
-            }}
+            size="sm"
+            style={{ padding: "6px 14px", height: "auto" }}
           >
             {t("common.btn_retry", "Tentar Novamente")}
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -228,27 +240,23 @@ export function ModDetail({
         gap: "12px",
         flexShrink: 0
       }}>
-        <button
+        <Button
           onClick={onBack}
-          style={{
-            display: "flex", alignItems: "center", gap: "6px", fontSize: "12px",
-            backgroundColor: C.grey, color: C.lighterGrey, padding: "5px 12px",
-            borderRadius: "4px", border: `1px solid ${C.borderGrey}`, cursor: "pointer",
-            fontWeight: 600, textTransform: "uppercase", transition: "all 0.2s"
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#4f4f4f"; e.currentTarget.style.color = "#fff"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = C.grey; e.currentTarget.style.color = C.lighterGrey; }}
+          variant="outline"
+          size="sm"
+          style={{ padding: "6px 14px", height: "auto" }}
+          className="border-[#222222] text-[#c6c6c6] hover:bg-[#4f4f4f] hover:text-white text-[12px] font-semibold uppercase"
         >
           <ArrowLeft size={13} />
           {t("common.btn_back", "Voltar")}
-        </button>
+        </Button>
         <span style={{ color: C.metaGrey, fontSize: "13px" }}>
           / {t("modDetail.path_details", "Detalhes do Mod")}
         </span>
       </div>
 
       {/* Main Container Rolável */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
+      <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
         
         {/* Mod Meta Hero Header */}
         <div style={{
@@ -371,55 +379,44 @@ export function ModDetail({
                 <>
                   {/* Instalar */}
                   {localStatus === "not_installed" && (
-                    <button
+                    <Button
                       onClick={() => localMod && onInstall(localMod)}
                       disabled={!localMod}
-                      style={{
-                        display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
-                        fontSize: "13px", backgroundColor: C.yellow, color: C.borderGrey,
-                        fontWeight: 700, padding: "8px 16px", borderRadius: "4px", border: "none",
-                        cursor: localMod ? "pointer" : "default", flex: 1, textTransform: "uppercase",
-                        boxShadow: "0 2px 4px rgba(0,0,0,0.2)"
-                      }}
+                      size="sm"
+                      style={{ padding: "8px 16px", height: "auto" }}
+                      className="flex-1 text-[13px] font-bold uppercase shadow-md"
                     >
                       <Download size={14} />
                       {t("modCard.btn_install", "Instalar")}
-                    </button>
+                    </Button>
                   )}
 
                   {/* Atualizar */}
                   {localStatus === "outdated" && (
-                    <button
+                    <Button
                       onClick={() => localMod && onUpdate(localMod)}
                       disabled={!localMod}
-                      style={{
-                        display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
-                        fontSize: "13px", backgroundColor: C.yellow, color: C.borderGrey,
-                        fontWeight: 700, padding: "8px 16px", borderRadius: "4px", border: "none",
-                        cursor: localMod ? "pointer" : "default", flex: 1, textTransform: "uppercase",
-                        boxShadow: "0 2px 4px rgba(0,0,0,0.2)"
-                      }}
+                      size="sm"
+                      style={{ padding: "8px 16px", height: "auto" }}
+                      className="flex-1 text-[13px] font-bold uppercase shadow-md"
                     >
                       <RefreshCw size={14} />
                       {t("modCard.btn_update", "Atualizar")}
-                    </button>
+                    </Button>
                   )}
 
                   {/* Desinstalar */}
                   {localMod?.is_installed && (
-                    <button
+                    <Button
                       onClick={() => onUninstall(localMod)}
-                      style={{
-                        display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
-                        fontSize: "13px", backgroundColor: "#6e2020", color: "#f5b7b7",
-                        fontWeight: 700, padding: "8px 16px", borderRadius: "4px", border: "none",
-                        cursor: "pointer", flex: localStatus === "outdated" ? "none" : 1, textTransform: "uppercase"
-                      }}
-                      title={t("modCard.btn_uninstall", "Desinstalar")}
+                      variant="destructive"
+                      size="sm"
+                      style={{ padding: "8px 16px", height: "auto" }}
+                      className={localStatus === "installed" ? "flex-1 text-[13px] font-bold uppercase" : "text-[13px] font-bold uppercase"}
                     >
                       <Trash2 size={14} />
                       {localStatus === "installed" && t("modCard.btn_uninstall", "Desinstalar")}
-                    </button>
+                    </Button>
                   )}
                 </>
               )}
@@ -520,19 +517,19 @@ export function ModDetail({
             { id: "changelog", label: t("modDetail.tab_changelog", "Histórico de Alterações") },
             { id: "dependencies", label: t("modDetail.tab_dependencies", "Dependências") }
           ] as const).map((tab) => (
-            <button
+            <Button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              style={{
-                padding: "10px 16px", fontSize: "13px", fontWeight: activeTab === tab.id ? 700 : 500,
-                color: activeTab === tab.id ? C.yellow : C.lighterGrey,
-                backgroundColor: activeTab === tab.id ? C.darkerGrey : "transparent",
-                border: "none", borderBottom: `2px solid ${activeTab === tab.id ? C.yellow : "transparent"}`,
-                borderTopLeftRadius: "6px", borderTopRightRadius: "6px", cursor: "pointer", transition: "all 0.15s"
-              }}
+              variant="ghost"
+              style={{ padding: "10px 16px", height: "auto" }}
+              className={`text-[13px] rounded-none border-b-2 ${
+                activeTab === tab.id
+                  ? "text-[#e5ca5f] font-bold bg-[#292929] border-b-2 border-[#e5ca5f]"
+                  : "text-[#c6c6c6] font-medium border-b-2 border-transparent hover:text-[#e5ca5f]"
+              }`}
             >
               {tab.label}
-            </button>
+            </Button>
           ))}
         </div>
 
@@ -695,21 +692,15 @@ export function ModDetail({
               {/* Painel Esquerdo: Lista de Versões */}
               <div style={{ width: "240px", flexShrink: 0, backgroundColor: C.darkerGrey, borderRadius: "8px", padding: "10px", display: "flex", flexDirection: "column", gap: "6px", overflowY: "auto", maxHeight: "400px" }}>
                 {details.versions.map((ver, idx) => (
-                  <button
+                  <Button
                     key={ver.version}
                     onClick={() => setSelectedVersionIndex(idx)}
-                    style={{
-                      padding: "10px 12px", border: "none", borderRadius: "6px", cursor: "pointer",
-                      display: "flex", flexDirection: "column", gap: "3px", textAlign: "left", transition: "all 0.15s",
-                      backgroundColor: selectedVersionIndex === idx ? C.yellow : "transparent",
-                      color: selectedVersionIndex === idx ? C.borderGrey : C.lightGrey
-                    }}
-                    onMouseEnter={(e) => {
-                      if (selectedVersionIndex !== idx) e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)";
-                    }}
-                    onMouseLeave={(e) => {
-                      if (selectedVersionIndex !== idx) e.currentTarget.style.backgroundColor = "transparent";
-                    }}
+                    variant={selectedVersionIndex === idx ? "default" : "ghost"}
+                    className={`flex flex-col gap-1 text-left h-auto py-2.5 px-3 ${
+                      selectedVersionIndex === idx
+                        ? "bg-[#e5ca5f] text-[#222222]"
+                        : "text-[#f8f8f8] hover:bg-white/[0.04]"
+                    }`}
                   >
                     <span style={{ fontSize: "13px", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
                       {ver.version}
@@ -726,7 +717,7 @@ export function ModDetail({
                     <span style={{ fontSize: "11px", opacity: 0.8 }}>
                       {ver.released_date || t("common.no_date", "Sem data")}
                     </span>
-                  </button>
+                  </Button>
                 ))}
               </div>
 
@@ -738,17 +729,15 @@ export function ModDetail({
                       {t("modDetail.version_title", "Versão {{version}}", { version: selectedVersion.version })}
                     </h4>
                     {selectedVersion.download_url && localMod && (
-                      <button
+                      <Button
                         onClick={() => onInstall(localMod)}
-                        style={{
-                          display: "flex", alignItems: "center", gap: "6px", fontSize: "12px",
-                          backgroundColor: C.yellow, color: C.borderGrey, padding: "5px 12px",
-                          borderRadius: "4px", border: "none", cursor: "pointer", fontWeight: 700
-                        }}
+                        size="sm"
+                        style={{ padding: "6px 14px", height: "auto" }}
+                        className="text-[12px] font-bold gap-1.5"
                       >
                         <Download size={12} />
                         {t("modDetail.download_this", "Baixar esta Versão")}
-                      </button>
+                      </Button>
                     )}
                   </div>
 
@@ -854,6 +843,17 @@ export function ModDetail({
           )}
 
         </div>
+
+        {showScrollTop && (
+          <Button
+            onClick={scrollToTop}
+            size="icon"
+            className="fixed bottom-6 right-6 w-10 h-10 rounded-full shadow-lg z-[100]"
+            title={t("modList.back_to_top")}
+          >
+            <ChevronUp size={20} />
+          </Button>
+        )}
       </div>
 
       {/* Screen Lightbox (Screenshot Ampliado) */}

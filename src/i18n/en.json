@@ -45,13 +45,17 @@
     "scanning": "Scanning...",
     "scan_result": "{{count}} installed mod detected.",
     "scan_result_plural": "{{count}} installed mods detected.",
-    "scan_error": "Error scanning: {{error}}"
+    "scan_error": "Error scanning: {{error}}",
+    "auto_update": "Automatic App Updates",
+    "auto_update_desc": "Automatically check and install new app versions in the background.",
+    "auto_update_enabled": "Enable automatic updates"
   },
   "modList": {
     "filter_all": "All",
     "filter_installed": "Installed",
     "filter_outdated": "Outdated",
-    "search_placeholder": "Search mod..."
+    "search_placeholder": "Search mod...",
+    "back_to_top": "Back to top"
   },
   "modCard": {
     "by_author": "by {{author}}",
@@ -140,5 +144,23 @@
     "status_installed": "Installed (v{{version}})",
     "status_outdated": "Update available (Installed: v{{installed}})",
     "status_not_installed": "Not Installed"
+  },
+  "toast": {
+    "update_available": "New version {{version}} available! Downloading and installing...",
+    "update_installed": "Version {{version}} installed! Restart the application.",
+    "mods_updated": "{{count}} mod updated successfully!",
+    "mods_updated_plural": "{{count}} mods updated successfully!"
+  },
+  "error": {
+    "mods_folder_not_configured": "Mods folder not configured. Go to Settings.",
+    "folder_not_found": "Folder not found.",
+    "mod_not_found": "Mod not found in database.",
+    "failed_to_remove": "Failed to remove folder.",
+    "mod_folder_not_found": "Mod folder not found.",
+    "download_link_not_found": "Download link not found.",
+    "failed_to_access": "Failed to access mod page.",
+    "failed_to_load_mod": "Failed to load mod details.",
+    "selector_error": "Internal processing error.",
+    "invalid_mod_url": "Invalid mod URL."
   }
 }

@@ -43,15 +43,41 @@ pub async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 pub async fn check_app_update_on_startup(app: &tauri::AppHandle) {
+    let db = app.state::<Database>();
+    let enabled = match db.get_setting("auto_update_enabled").await {
+        Ok(Some(v)) => v == "true",
+        _ => true,
+    };
+    if !enabled { return; }
+
     use tauri_plugin_updater::UpdaterExt;
     let Ok(updater) = app.updater() else { return };
     let Ok(Some(update)) = updater.check().await else { return };
+
     let _ = app.emit("update-available", UpdateInfo {
         version: update.version.clone(),
         notes: update.body.clone(),
         date: update.date.map(|d| d.to_string()),
     });
+
+    let app2 = app.clone();
+    let result = update.download_and_install(
+        move |downloaded, total| {
+            let _ = app2.emit("update-progress", (downloaded, total));
+        },
+        move || { let _ = app.emit("update-restart", ()); },
+    ).await;
+
+    if result.is_ok() {
+        let _ = app.emit("update-installed", UpdateInfo {
+            version: update.version.clone(),
+            notes: None,
+            date: None,
+        });
+    }
 }
+
+
 
 #[tauri::command]
 pub async fn get_setting(db: State<'_, Database>, key: String) -> Result<Option<String>, String> {
@@ -132,13 +158,13 @@ pub async fn run_scrape(app: &tauri::AppHandle, order_by: &str, time_range: &str
             let db = app.state::<Database>();
             for m in &mods {
                 if let Err(e) = db.upsert_mod(m).await {
-                    eprintln!("upsert erro: {e}");
+                    eprintln!("upsert error: {e}");
                 }
             }
             let _ = app.emit("mods-updated", mods.len());
         }
         Err(e) => {
-            eprintln!("scraping erro: {e}");
+            eprintln!("scraping error: {e}");
             let _ = app.emit("mods-sync-error", e.to_string());
         }
     }
@@ -151,7 +177,7 @@ pub async fn update_all_mods(
 ) -> Result<usize, String> {
     let folder = db.get_setting("mods_folder").await
         .map_err(|e| e.to_string())?
-        .ok_or("Pasta de mods não configurada. Acesse Configurações.")?;
+        .ok_or("Mods folder not configured. Go to Settings.")?;
 
     let ids = db.get_outdated_ids().await.map_err(|e| e.to_string())?;
     let count = ids.len();
@@ -159,24 +185,14 @@ pub async fn update_all_mods(
     for id in &ids {
         let mod_page_url = db.get_mod_page_url(id).await
             .map_err(|e| e.to_string())?
-            .ok_or_else(|| format!("Mod id={} não encontrado no banco de dados", id))?;
+            .ok_or_else(|| format!("Mod id={} not found in database", id))?;
         download_and_extract(&mod_page_url, &folder).await?;
     }
 
     if count > 0 {
         run_scan_installed(&app).await;
 
-        use tauri_plugin_notification::NotificationExt;
-        let body = format!(
-            "{} mod{} atualizad{} com sucesso!",
-            count,
-            if count == 1 { "" } else { "s" },
-            if count == 1 { "o" } else { "os" }
-        );
-        let _ = app.notification().builder()
-            .title("CoI Mod Manager")
-            .body(&body)
-            .show();
+        let _ = app.emit("mods-updated-notification", count);
     }
 
     Ok(count)
@@ -211,11 +227,11 @@ pub async fn install_mod(
 ) -> Result<(), String> {
     let folder = db.get_setting("mods_folder").await
         .map_err(|e| e.to_string())?
-        .ok_or("Pasta de mods não configurada. Acesse Configurações.")?;
+        .ok_or("Mods folder not configured. Go to Settings.")?;
 
     let mod_page_url = db.get_mod_page_url(&mod_id).await
         .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("Mod id={} não encontrado no banco de dados", mod_id))?;
+        .ok_or_else(|| format!("Mod id={} not found in database", mod_id))?;
 
     download_and_extract(&mod_page_url, &folder).await?;
     run_scan_installed(&app).await;
@@ -230,11 +246,11 @@ pub async fn update_mod(
 ) -> Result<(), String> {
     let folder = db.get_setting("mods_folder").await
         .map_err(|e| e.to_string())?
-        .ok_or("Pasta de mods não configurada. Acesse Configurações.")?;
+        .ok_or("Mods folder not configured. Go to Settings.")?;
 
     let mod_page_url = db.get_mod_page_url(&mod_id).await
         .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("Mod id={} não encontrado no banco de dados", mod_id))?;
+        .ok_or_else(|| format!("Mod id={} not found in database", mod_id))?;
 
     download_and_extract(&mod_page_url, &folder).await?;
     run_scan_installed(&app).await;
@@ -249,16 +265,16 @@ pub async fn uninstall_mod(
 ) -> Result<(), String> {
     let folder = db.get_setting("mods_folder").await
         .map_err(|e| e.to_string())?
-        .ok_or("Pasta de mods não configurada. Acesse Configurações.")?;
+        .ok_or("Mods folder not configured. Go to Settings.")?;
 
     let folder_path = std::path::Path::new(&folder);
     if !folder_path.exists() {
-        return Err(format!("Pasta não encontrada: {}", folder));
+        return Err(format!("Folder not found: {}", folder));
     }
 
     let all_mods = db.get_all_mods().await.map_err(|e| e.to_string())?;
     let mod_entry = all_mods.iter().find(|m| m.id == mod_id)
-        .ok_or_else(|| format!("Mod id={} não encontrado no banco de dados", mod_id))?;
+        .ok_or_else(|| format!("Mod id={} not found in database", mod_id))?;
 
     let entries = std::fs::read_dir(folder_path).map_err(|e| e.to_string())?;
     let mut found = false;
@@ -287,14 +303,14 @@ pub async fn uninstall_mod(
             || mod_entry.name.to_lowercase().replace(' ', "-") == manifest_id;
 
         if matched {
-            std::fs::remove_dir_all(&path).map_err(|e| format!("Erro ao remover {}: {}", path.display(), e))?;
+            std::fs::remove_dir_all(&path).map_err(|e| format!("Failed to remove {}: {}", path.display(), e))?;
             found = true;
             break;
         }
     }
 
     if !found {
-        return Err(format!("Pasta do mod '{}' não encontrada em {}", mod_entry.name, folder));
+        return Err(format!("Mod folder '{}' not found in {}", mod_entry.name, folder));
     }
 
     db.set_uninstalled(&mod_id).await.map_err(|e| e.to_string())?;
@@ -309,11 +325,11 @@ pub async fn scan_installed_mods(
 ) -> Result<usize, String> {
     let folder = db.get_setting("mods_folder").await
         .map_err(|e| e.to_string())?
-        .ok_or_else(|| "Pasta de mods não configurada".to_string())?;
+        .ok_or_else(|| "Mods folder not configured".to_string())?;
 
     let folder_path = std::path::Path::new(&folder);
     if !folder_path.exists() {
-        return Err(format!("Pasta não encontrada: {}", folder));
+        return Err(format!("Folder not found: {}", folder));
     }
 
     let all_mods = db.get_all_mods().await.map_err(|e| e.to_string())?;
@@ -370,20 +386,20 @@ pub async fn run_scan_installed(app: &tauri::AppHandle) {
     match scan_installed_mods_inner(&db).await {
         Ok((found, total)) => {
             let _ = app.emit("mods-updated", ());
-            println!("Scan: {}/{} mods instalados detectados", found, total);
+            println!("Scan: {}/{} installed mods detected", found, total);
         }
-        Err(e) => eprintln!("Scan instalados erro: {e}"),
+        Err(e) => eprintln!("Installed scan error: {e}"),
     }
 }
 
 async fn scan_installed_mods_inner(db: &Database) -> Result<(usize, usize), String> {
     let folder = db.get_setting("mods_folder").await
         .map_err(|e| e.to_string())?
-        .ok_or_else(|| "mods_folder não configurado".to_string())?;
+        .ok_or_else(|| "mods_folder not configured".to_string())?;
 
     let folder_path = std::path::Path::new(&folder);
     if !folder_path.exists() {
-        return Err(format!("Pasta não encontrada: {}", folder));
+        return Err(format!("Folder not found: {}", folder));
     }
 
     let all_mods = db.get_all_mods().await.map_err(|e| e.to_string())?;
@@ -439,7 +455,7 @@ pub async fn get_mod_details(
 ) -> Result<crate::scraper::ModDetails, String> {
     let mod_page_url = db.get_mod_page_url(&mod_id).await
         .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("Mod id={} não encontrado no banco", mod_id))?;
+        .ok_or_else(|| format!("Mod id={} not found in database", mod_id))?;
     let client = reqwest::Client::builder()
         .user_agent("CoI-Mod-Manager/1.0")
         .build()

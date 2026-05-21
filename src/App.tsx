@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useTranslation } from "react-i18next";
@@ -9,13 +9,41 @@ import { Settings } from "@/pages/Settings";
 import { ModDetail } from "@/pages/ModDetail";
 import { Mod } from "@/types/mod";
 import { SidebarFilters, SORT_OPTIONS } from "@/types/filters";
+import { useToast } from "@/hooks/use-toast";
+import { Toaster } from "@/components/ui/toaster";
 
 function splitTags(category: string): string[] {
   return category.split(",").map((t) => t.trim()).filter(Boolean);
 }
 
+const ERROR_TRANSLATIONS: Record<string, string> = {
+  "Mods folder not configured. Go to Settings.": "error.mods_folder_not_configured",
+  "Mods folder not configured": "error.mods_folder_not_configured",
+  "Folder not found:": "error.folder_not_found",
+  "Mod id=": "error.mod_not_found",
+  "Failed to remove": "error.failed_to_remove",
+  "Mod folder": "error.mod_folder_not_found",
+  "Download link not found at": "error.download_link_not_found",
+  "Failed to access": "error.failed_to_access",
+  "Failed to load mod": "error.failed_to_load_mod",
+  "Selector error:": "error.selector_error",
+  "Invalid mod URL": "error.invalid_mod_url",
+  "This mod has no dependencies.": "",
+};
+
+function translateError(msg: string, t: (key: string) => string): string {
+  for (const [key, i18nKey] of Object.entries(ERROR_TRANSLATIONS)) {
+    if (msg.startsWith(key)) {
+      if (!i18nKey) return msg;
+      return t(i18nKey);
+    }
+  }
+  return msg;
+}
+
 export default function App() {
-  const { i18n } = useTranslation();
+  const { i18n, t } = useTranslation();
+  const { toast } = useToast();
   const [mods, setMods] = useState<Mod[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [installingIds, setInstallingIds] = useState<Set<string>>(new Set());
@@ -29,6 +57,13 @@ export default function App() {
     devstates: [],
     gameVersion: "",
   });
+
+  const showToast = useCallback((message: string, type: "info" | "error" | "success" = "info") => {
+    toast({
+      description: message,
+      variant: type === "error" ? "destructive" : "default",
+    });
+  }, [toast]);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -44,7 +79,7 @@ export default function App() {
         setMods(result);
         if (result.length === 0) setSyncing(true);
       } catch (e) {
-        console.error("Erro ao carregar mods:", e);
+        console.error("Failed to load mods:", e);
       }
 
       unlisten = await listen("mods-updated", async () => {
@@ -54,17 +89,28 @@ export default function App() {
       });
 
       await listen<string>("mods-sync-error", (e) => {
-        console.error("Erro na sincronização dos mods:", e.payload);
+        console.error("Mods sync error:", e.payload);
+        showToast(translateError(e.payload, t), "error");
       });
 
       await listen<{ version: string; notes?: string }>("update-available", (e) => {
         setAppUpdate(e.payload);
+        showToast(t("toast.update_available", { version: e.payload.version }), "info");
+      });
+
+      await listen<{ version: string }>("update-installed", (e) => {
+        showToast(t("toast.update_installed", { version: e.payload.version }), "success");
+      });
+
+      await listen<number>("mods-updated-notification", (e) => {
+        const count = e.payload;
+        showToast(t("toast.mods_updated", { count }), "success");
       });
     }
 
     init();
     return () => { unlisten?.(); };
-  }, [i18n]);
+  }, [i18n, t, showToast]);
 
   const prevSortRef = useRef(filters.sortBy);
   const prevTimeRef = useRef(filters.timeRange);
@@ -84,7 +130,8 @@ export default function App() {
       const result = await invoke<Mod[]>("get_mods");
       setMods(result);
     } catch (e) {
-      console.error("Erro ao carregar mods:", e);
+      console.error("Failed to load mods:", e);
+      showToast(translateError(String(e), t), "error");
     }
   }
 
@@ -96,7 +143,8 @@ export default function App() {
       await invoke("sync_mods", { orderBy, timeRange: filters.timeRange });
       await loadMods();
     } catch (e) {
-      console.error("Erro ao sincronizar:", e);
+      console.error("Failed to sync:", e);
+      showToast(translateError(String(e), t), "error");
     } finally {
       setSyncing(false);
     }
@@ -108,7 +156,8 @@ export default function App() {
       await invoke("update_all_mods");
       await loadMods();
     } catch (e) {
-      console.error("Erro ao atualizar:", e);
+      console.error("Failed to update:", e);
+      showToast(translateError(String(e), t), "error");
     } finally {
       setSyncing(false);
     }
@@ -120,7 +169,8 @@ export default function App() {
       await invoke("update_mod", { modId: mod.id });
       await loadMods();
     } catch (e) {
-      console.error("Erro ao atualizar mod:", e);
+      console.error("Failed to update mod:", e);
+      showToast(translateError(String(e), t), "error");
     } finally {
       setInstallingIds((prev) => { const s = new Set(prev); s.delete(mod.id); return s; });
     }
@@ -132,7 +182,8 @@ export default function App() {
       await invoke("install_mod", { modId: mod.id });
       await loadMods();
     } catch (e) {
-      console.error("Erro ao instalar mod:", e);
+      console.error("Failed to install mod:", e);
+      showToast(translateError(String(e), t), "error");
     } finally {
       setInstallingIds((prev) => { const s = new Set(prev); s.delete(mod.id); return s; });
     }
@@ -144,7 +195,8 @@ export default function App() {
       await invoke("uninstall_mod", { modId: mod.id });
       await loadMods();
     } catch (e) {
-      console.error("Erro ao desinstalar mod:", e);
+      console.error("Failed to uninstall mod:", e);
+      showToast(translateError(String(e), t), "error");
     } finally {
       setInstallingIds((prev) => { const s = new Set(prev); s.delete(mod.id); return s; });
     }
@@ -191,6 +243,7 @@ export default function App() {
 
   return (
     <div style={{ display: "flex", height: "100vh", backgroundColor: "#2f2f2f", color: "#f8f8f8", overflow: "hidden" }}>
+      <Toaster />
       <Sidebar
         tags={tags}
         counts={tagCounts}
@@ -211,7 +264,7 @@ export default function App() {
           onInstallUpdate={async () => {
             setSyncing(true);
             try { await invoke("install_update"); }
-            catch (e) { console.error("Erro ao instalar update:", e); setSyncing(false); }
+            catch (e) { console.error("Failed to install update:", e); showToast(translateError(String(e), t), "error"); setSyncing(false); }
           }}
         />
         {view === "mods" ? (

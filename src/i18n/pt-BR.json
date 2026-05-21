@@ -45,13 +45,17 @@
     "scanning": "Verificando...",
     "scan_result": "{{count}} mod instalado detectado.",
     "scan_result_plural": "{{count}} mods instalados detectados.",
-    "scan_error": "Erro ao verificar: {{error}}"
+    "scan_error": "Erro ao verificar: {{error}}",
+    "auto_update": "Atualização Automática do App",
+    "auto_update_desc": "Verifica e instala automaticamente novas versões do aplicativo em segundo plano.",
+    "auto_update_enabled": "Ativar atualização automática"
   },
   "modList": {
     "filter_all": "Todos",
     "filter_installed": "Instalados",
     "filter_outdated": "Desatualizados",
-    "search_placeholder": "Buscar mod..."
+    "search_placeholder": "Buscar mod...",
+    "back_to_top": "Voltar ao topo"
   },
   "modCard": {
     "by_author": "por {{author}}",
@@ -140,5 +144,23 @@
     "status_installed": "Instalado (v{{version}})",
     "status_outdated": "Atualização Disponível (Instalado: v{{installed}})",
     "status_not_installed": "Não Instalado"
+  },
+  "toast": {
+    "update_available": "Nova versão {{version}} disponível! Baixando e instalando...",
+    "update_installed": "Versão {{version}} instalada! Reinicie o aplicativo.",
+    "mods_updated": "{{count}} mod atualizado com sucesso!",
+    "mods_updated_plural": "{{count}} mods atualizados com sucesso!"
+  },
+  "error": {
+    "mods_folder_not_configured": "Pasta de mods não configurada. Acesse Configurações.",
+    "folder_not_found": "Pasta não encontrada.",
+    "mod_not_found": "Mod não encontrado no banco de dados.",
+    "failed_to_remove": "Erro ao remover pasta.",
+    "mod_folder_not_found": "Pasta do mod não encontrada.",
+    "download_link_not_found": "Link de download não encontrado.",
+    "failed_to_access": "Erro ao acessar página do mod.",
+    "failed_to_load_mod": "Erro ao carregar detalhes do mod.",
+    "selector_error": "Erro interno de processamento.",
+    "invalid_mod_url": "URL do mod inválida."
   }
 }

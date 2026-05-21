@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { FolderOpen, Search, ScanSearch, Globe } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 const C = {
   darkerGrey: "#292929",
@@ -31,6 +32,7 @@ export function Settings() {
   const [scanMsg, setScanMsg] = useState<string | null>(null);
   const [os, setOs] = useState<string>("");
   const [language, setLanguage] = useState("pt-BR");
+  const [autoUpdateEnabled, setAutoUpdateEnabled] = useState(true);
 
   useEffect(() => {
     invoke<string | null>("get_setting", { key: "mods_folder" }).then((v) => {
@@ -38,6 +40,9 @@ export function Settings() {
     });
     invoke<string | null>("get_setting", { key: "language" }).then((v) => {
       if (v) { setLanguage(v); i18n.changeLanguage(v); }
+    });
+    invoke<string | null>("get_setting", { key: "auto_update_enabled" }).then((v) => {
+      if (v !== null) setAutoUpdateEnabled(v === "true");
     });
     const p = navigator.platform.toLowerCase();
     if (p.includes("win")) setOs("windows");
@@ -95,6 +100,11 @@ export function Settings() {
     setLanguage(lang);
     i18n.changeLanguage(lang);
     await invoke("set_setting", { key: "language", value: lang });
+  }
+
+  async function handleAutoUpdateToggle(enabled: boolean) {
+    setAutoUpdateEnabled(enabled);
+    await invoke("set_setting", { key: "auto_update_enabled", value: enabled ? "true" : "false" });
   }
 
   return (
@@ -155,6 +165,33 @@ export function Settings() {
         </div>
       </div>
 
+      {/* Auto-update section */}
+      <div style={{
+        backgroundColor: C.darkerGrey,
+        border: `1px solid ${C.borderGrey}`,
+        borderRadius: "6px",
+        padding: "20px",
+        maxWidth: "600px",
+        marginBottom: "16px",
+      }}>
+        <h3 style={{ fontSize: "12px", fontWeight: 700, color: C.yellow, textTransform: "uppercase", letterSpacing: "1px", marginBottom: "6px" }}>
+          {t("settings.auto_update")}
+        </h3>
+        <p style={{ fontSize: "12px", color: C.metaGrey, marginBottom: "16px", lineHeight: "1.5" }}>
+          {t("settings.auto_update_desc")}
+        </p>
+
+        <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "12px", color: C.white }}>
+          <input
+            type="checkbox"
+            checked={autoUpdateEnabled}
+            onChange={(e) => handleAutoUpdateToggle(e.target.checked)}
+            style={{ accentColor: C.yellow, width: "14px", height: "14px", cursor: "pointer" }}
+          />
+          {t("settings.auto_update_enabled")}
+        </label>
+      </div>
+
       {/* Section: Localização dos Mods */}
       <div style={{
         backgroundColor: C.darkerGrey,
@@ -195,70 +232,41 @@ export function Settings() {
               fontFamily: "monospace",
             }}
           />
-          <button
+          <Button
             onClick={handleBrowse}
             title={t("settings.folder_title")}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "5px",
-              padding: "6px 12px",
-              fontSize: "11px",
-              fontWeight: 700,
-              textTransform: "uppercase",
-              backgroundColor: C.grey,
-              color: C.lighterGrey,
-              border: `1px solid ${C.borderGrey}`,
-              borderRadius: "4px",
-              cursor: "pointer",
-              flexShrink: 0,
-            }}
+            variant="outline"
+            size="sm"
+            style={{ padding: "6px 14px", height: "auto" }}
+            className="border-[#222222] text-[#c6c6c6] hover:bg-[#414141] text-[11px] font-bold uppercase"
           >
             <FolderOpen size={13} />
             {t("settings.browse")}
-          </button>
+          </Button>
         </div>
 
         <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          <button
+          <Button
             onClick={handleDetect}
             disabled={detecting}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "5px",
-              padding: "5px 12px",
-              fontSize: "11px",
-              fontWeight: 600,
-              textTransform: "uppercase",
-              backgroundColor: "transparent",
-              color: detecting ? C.metaGrey : C.lighterGrey,
-              border: `1px solid ${C.grey}`,
-              borderRadius: "4px",
-              cursor: detecting ? "default" : "pointer",
-            }}
+            variant="outline"
+            size="sm"
+            style={{ padding: "6px 14px", height: "auto" }}
+            className="border-[#414141] text-[#c6c6c6] hover:bg-[#414141] text-[11px] font-semibold uppercase"
           >
             <Search size={11} />
             {detecting ? t("settings.detecting") : t("settings.detect")}
-          </button>
+          </Button>
 
-          <button
+          <Button
             onClick={handleSave}
             disabled={!modsFolder}
-            style={{
-              padding: "5px 16px",
-              fontSize: "11px",
-              fontWeight: 700,
-              textTransform: "uppercase",
-              backgroundColor: modsFolder ? C.yellow : C.grey,
-              color: modsFolder ? C.borderGrey : C.metaGrey,
-              border: "none",
-              borderRadius: "4px",
-              cursor: modsFolder ? "pointer" : "default",
-            }}
+            size="sm"
+            style={{ padding: "6px 14px", height: "auto" }}
+            className="text-[11px] font-bold uppercase"
           >
             {saved ? t("common.saved") : t("common.save")}
-          </button>
+          </Button>
         </div>
 
         {detectMsg && (
@@ -285,28 +293,16 @@ export function Settings() {
         </p>
 
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <button
+          <Button
             onClick={handleScan}
             disabled={scanning || !modsFolder}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "5px",
-              padding: "5px 14px",
-              fontSize: "11px",
-              fontWeight: 700,
-              textTransform: "uppercase",
-              backgroundColor: modsFolder ? C.yellow : C.grey,
-              color: modsFolder ? C.borderGrey : C.metaGrey,
-              border: "none",
-              borderRadius: "4px",
-              cursor: (scanning || !modsFolder) ? "default" : "pointer",
-              opacity: scanning ? 0.7 : 1,
-            }}
+            size="sm"
+            style={{ padding: "6px 14px", height: "auto" }}
+            className="text-[11px] font-bold uppercase"
           >
             <ScanSearch size={12} />
             {scanning ? t("settings.scanning") : t("settings.scan")}
-          </button>
+          </Button>
         </div>
 
         {scanMsg && (

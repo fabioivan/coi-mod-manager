@@ -248,16 +248,16 @@ pub async fn resolve_download_url(
 ) -> Result<String, String> {
     let html = client
         .get(mod_page_url)
-        .send().await.map_err(|e| format!("Erro ao acessar {}: {}", mod_page_url, e))?
+        .send().await.map_err(|e| format!("Failed to access {}: {}", mod_page_url, e))?
         .text().await.map_err(|e| e.to_string())?;
 
     let doc = Html::parse_document(&html);
     let sel = Selector::parse("a.mod-download-trigger")
-        .map_err(|e| format!("Erro de seletor: {}", e))?;
+        .map_err(|e| format!("Selector error: {}", e))?;
 
     let download_path = doc.select(&sel).next()
         .and_then(|el| el.value().attr("href"))
-        .ok_or_else(|| format!("Link de download não encontrado em {}", mod_page_url))?;
+        .ok_or_else(|| format!("Download link not found at {}", mod_page_url))?;
 
     Ok(format!("{}{}", BASE_URL, download_path))
 }
@@ -331,14 +331,14 @@ pub async fn scrape_mod_details(
 ) -> Result<ModDetails, String> {
     let html = client
         .get(mod_url)
-        .send().await.map_err(|e| format!("Erro ao carregar mod {}: {}", mod_url, e))?
+        .send().await.map_err(|e| format!("Failed to load mod {}: {}", mod_url, e))?
         .text().await.map_err(|e| e.to_string())?;
 
     let doc = Html::parse_document(&html);
 
     let id = mod_url.split('/')
         .nth(4)
-        .ok_or_else(|| "URL de mod inválida".to_string())?
+        .ok_or_else(|| "Invalid mod URL".to_string())?
         .to_string();
 
     let h1_sel = Selector::parse(".mv2-header-center h1").unwrap();
@@ -588,7 +588,7 @@ pub async fn scrape_mod_details(
     let tab_dependencies_sel = Selector::parse("#tab-dependencies").unwrap();
     let dependencies = doc.select(&tab_dependencies_sel).next()
         .map(|el| el.text().collect::<String>().trim().to_string())
-        .unwrap_or_else(|| "Este mod não tem dependências.".to_string());
+        .unwrap_or_else(|| "This mod has no dependencies.".to_string());
 
     let updated_at = doc.select(&Selector::parse(".mv2-header-center span.time-ago").unwrap()).next()
         .and_then(|el| el.value().attr("data-utc-date"))

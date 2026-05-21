@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { RefreshCw, Settings, ArrowLeft, Download } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface UpdateInfo {
   version: string;
@@ -38,7 +39,6 @@ export function TopBar({ outdatedCount, onRefresh, onUpdateAll, loading, view, o
       flexShrink: 0,
       position: "relative",
     }}>
-      {/* Barra de progresso amarela no topo quando sincronizando */}
       {loading && <div className="sync-progress-bar" />}
 
       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -47,18 +47,15 @@ export function TopBar({ outdatedCount, onRefresh, onUpdateAll, loading, view, o
             <span style={{ fontSize: "12px", color: "#81c784", fontWeight: 600 }}>
               {t("topBar.app_update_available", { version: appUpdate.version })}
             </span>
-            <button
+            <Button
               onClick={onInstallUpdate}
-              style={{
-                display: "flex", alignItems: "center", gap: "4px",
-                fontSize: "11px", backgroundColor: "#2e7d32", color: "#e8f5e9",
-                fontWeight: 700, padding: "2px 10px", borderRadius: "2px",
-                border: "none", cursor: "pointer", textTransform: "uppercase",
-              }}
+              size="sm"
+              style={{ padding: "6px 14px", height: "auto" }}
+              className="bg-[#2e7d32] text-[#e8f5e9] hover:bg-[#2e7d32]/90 text-[11px] font-bold uppercase"
             >
               <Download size={10} />
               {t("topBar.btn_install_update")}
-            </button>
+            </Button>
           </>
         )}
         {outdatedCount > 0 && (
@@ -66,68 +63,44 @@ export function TopBar({ outdatedCount, onRefresh, onUpdateAll, loading, view, o
             <span style={{ fontSize: "12px", color: C.yellow, fontWeight: 600 }}>
               {t("topBar.outdated_count", { count: outdatedCount })}
             </span>
-            <button
+            <Button
               onClick={onUpdateAll}
-              style={{
-                fontSize: "11px",
-                backgroundColor: C.yellow,
-                color: C.borderGrey,
-                fontWeight: 700,
-                padding: "2px 10px",
-                borderRadius: "2px",
-                border: "none",
-                cursor: "pointer",
-                textTransform: "uppercase",
-              }}
+              size="sm"
+              style={{ padding: "6px 14px", height: "auto" }}
+              className="text-[11px] font-bold uppercase"
             >
               {t("topBar.btn_update_all")}
-            </button>
+            </Button>
           </>
         )}
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
         {view === "mods" && (
-          <button
+          <Button
             onClick={onRefresh}
             disabled={loading}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              fontSize: "12px",
-              color: C.metaGrey,
-              background: "none",
-              border: "none",
-              cursor: loading ? "default" : "pointer",
-              opacity: loading ? 0.7 : 1,
-              textTransform: "uppercase",
-              fontWeight: 600,
-              letterSpacing: "0.5px",
-            }}
+            variant="ghost"
+            size="sm"
+            style={{ padding: "6px 14px", height: "auto" }}
+            className="text-[12px] text-muted-foreground uppercase font-semibold tracking-wide"
           >
             <RefreshCw
               size={12}
-              style={{ animation: loading ? "spin 0.8s linear infinite" : "none" }}
+              className={loading ? "animate-spin" : ""}
             />
             {loading ? t("topBar.btn_syncing") : t("topBar.btn_sync")}
-          </button>
+          </Button>
         )}
-        <button
+        <Button
           onClick={() => onViewChange(view === "settings" ? "mods" : "settings")}
           title={view === "settings" ? t("topBar.tooltip_back") : t("topBar.tooltip_settings")}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            color: view === "settings" ? C.yellow : C.metaGrey,
-            padding: "2px",
-          }}
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 text-muted-foreground"
         >
           {view === "settings" ? <ArrowLeft size={15} /> : <Settings size={15} />}
-        </button>
+        </Button>
       </div>
     </div>
   );

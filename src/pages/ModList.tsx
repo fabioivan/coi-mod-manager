@@ -1,9 +1,10 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Mod, getModStatus } from "@/types/mod";
 import { SidebarFilters } from "@/types/filters";
 import { ModCard } from "@/components/ModCard";
-import { Search, Loader2 } from "lucide-react";
+import { Search, Loader2, ChevronUp } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface ModListProps {
   mods: Mod[];
@@ -31,6 +32,20 @@ export function ModList({ mods, filters, onUpdate, onInstall, onUninstall, onSel
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => setShowScrollTop(el.scrollTop > 400);
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  function scrollToTop() {
+    scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   const filtered = useMemo(() => {
     return mods.filter((mod) => {
@@ -97,23 +112,18 @@ export function ModList({ mods, filters, onUpdate, onInstall, onUninstall, onSel
 
         <div style={{ display: "flex", gap: "4px" }}>
           {(["all", "installed", "outdated"] as const).map((f) => (
-            <button
+            <Button
               key={f}
               onClick={() => setStatusFilter(f)}
-              style={{
-                fontSize: "11px",
-                padding: "3px 10px",
-                borderRadius: "12px",
-                border: `1px solid ${statusFilter === f ? "transparent" : C.grey}`,
-                backgroundColor: statusFilter === f ? C.yellow : "transparent",
-                color: statusFilter === f ? C.borderGrey : C.lighterGrey,
-                fontWeight: statusFilter === f ? 700 : 600,
-                cursor: "pointer",
-                textTransform: "uppercase",
-              }}
+              variant={statusFilter === f ? "default" : "outline"}
+              size="sm"
+              style={{ padding: "6px 16px", height: "auto" }}
+              className={`text-[11px] font-semibold uppercase rounded-full ${
+                statusFilter === f ? "" : "border-[#414141] text-[#c6c6c6] hover:bg-[#414141]"
+              }`}
             >
               {t(`modList.filter_${f}`)}
-            </button>
+            </Button>
           ))}
         </div>
 
@@ -123,7 +133,7 @@ export function ModList({ mods, filters, onUpdate, onInstall, onUninstall, onSel
       </div>
 
       {/* Grid */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "16px", position: "relative" }}>
+      <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "16px", position: "relative" }}>
         {/* Overlay quando re-sincronizando com mods já carregados */}
         {syncing && mods.length > 0 && (
           <div style={{
@@ -186,6 +196,17 @@ export function ModList({ mods, filters, onUpdate, onInstall, onUninstall, onSel
               />
             ))}
           </div>
+        )}
+
+        {showScrollTop && (
+          <Button
+            onClick={scrollToTop}
+            size="icon"
+            className="fixed bottom-6 right-6 w-10 h-10 rounded-full shadow-lg z-[100]"
+            title={t("modList.back_to_top")}
+          >
+            <ChevronUp size={20} />
+          </Button>
         )}
       </div>
     </div>
