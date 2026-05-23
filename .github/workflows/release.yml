@@ -62,18 +62,18 @@ jobs:
           releaseBody: |
             ## 🎮 CoI Mod Manager ${{ github.ref_name }}
 
-            ### ✨ Novidades
-            - Perfis de mods: crie, alterne, exporte e importe perfis isolados
-            - Pool de mods: mods compartilhados entre perfis sem re-download
-            - Nova tela de seleção de perfil ao iniciar
-            - Suporte a capturas de tela no README
-            - Diversas correções de memória e estabilidade
+            ### ✨ What's New
+            - **Profiles**: create, switch, export, and import isolated mod profiles
+            - **Mod Pool**: mods are shared across profiles — no re-downloading
+            - **Profile selection screen** on startup
+            - **Screenshots** in README
+            - Memory and stability fixes
 
-            ### 🔧 Instalação
-            - **Windows**: baixe o `.msi` ou `.exe` (NSIS)
-            - **Linux**: baixe o `.AppImage` ou `.deb`
+            ### 🔧 Installation
+            - **Windows**: download `.msi` or `.exe` (NSIS)
+            - **Linux**: download `.AppImage` or `.deb`
 
-            > Veja os commits para detalhes completos das mudanças.
+            **Full Changelog**: https://github.com/fabioivan/coi-mod-manager/compare/v0.1.3...${{ github.ref_name }}
           releaseDraft: true
           prerelease: false
           includeUpdaterJson: true
