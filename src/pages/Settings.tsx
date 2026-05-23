@@ -1,8 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
-import { FolderOpen, Globe, ScanSearch, Search } from "lucide-react";
+import { FolderOpen, Globe, ScanSearch, Search, User, Plus, Check, Download, Upload, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { Profile } from "@/types/profile";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 
 const C = {
 	darkerGrey: "#292929",
@@ -22,7 +24,12 @@ const OS_LABELS: Record<string, string> = {
 
 const LANGUAGES = ["pt-BR", "en"];
 
-export function Settings() {
+interface SettingsProps {
+	activeProfile?: Profile | null;
+	onProfilesChanged?: () => void;
+}
+
+export function Settings({ activeProfile, onProfilesChanged }: SettingsProps) {
 	const { t, i18n } = useTranslation();
 	const [modsFolder, setModsFolder] = useState("");
 	const [saved, setSaved] = useState(false);
@@ -33,6 +40,19 @@ export function Settings() {
 	const [os, setOs] = useState<string>("");
 	const [language, setLanguage] = useState("pt-BR");
 	const [autoUpdateEnabled, setAutoUpdateEnabled] = useState(true);
+	const [profiles, setProfiles] = useState<Profile[]>([]);
+	const [importing, setImporting] = useState(false);
+
+	async function loadProfiles() {
+		try {
+			const result = await invoke<Profile[]>("get_profiles");
+			setProfiles(result);
+		} catch (_) {}
+	}
+
+	useEffect(() => {
+		loadProfiles();
+	}, []);
 
 	useEffect(() => {
 		invoke<string | null>("get_setting", { key: "mods_folder" }).then((v) => {
@@ -113,6 +133,21 @@ export function Settings() {
 			key: "auto_update_enabled",
 			value: enabled ? "true" : "false",
 		});
+	}
+
+	async function handleImport() {
+		const code = window.prompt(t("profile.import_prompt"));
+		if (!code?.trim()) return;
+		setImporting(true);
+		try {
+			await invoke<{ profile: Profile; mods_installed: number }>("import_profile", { data: code.trim() });
+			await loadProfiles();
+			if (onProfilesChanged) onProfilesChanged();
+		} catch (e) {
+			alert(String(e));
+		} finally {
+			setImporting(false);
+		}
 	}
 
 	return (
@@ -263,6 +298,222 @@ export function Settings() {
 					/>
 					{t("settings.auto_update_enabled")}
 				</label>
+			</div>
+
+			{/* Profile section */}
+			<div
+				style={{
+					backgroundColor: C.darkerGrey,
+					border: `1px solid ${C.borderGrey}`,
+					borderRadius: "6px",
+					padding: "20px",
+					maxWidth: "600px",
+					marginBottom: "16px",
+				}}
+			>
+				<h3
+					style={{
+						fontSize: "12px",
+						fontWeight: 700,
+						color: C.yellow,
+						textTransform: "uppercase",
+						letterSpacing: "1px",
+						marginBottom: "6px",
+					}}
+				>
+					{t("profile.title")}
+				</h3>
+				<p
+					style={{
+						fontSize: "12px",
+						color: C.metaGrey,
+						marginBottom: "16px",
+						lineHeight: "1.5",
+					}}
+				>
+					{t("profile.settings_desc")}
+				</p>
+
+				{profiles.length === 0 ? (
+					<p style={{ fontSize: "12px", color: C.metaGrey, marginBottom: "12px" }}>
+						{t("profile.select_desc")}
+					</p>
+				) : (
+					<div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "16px", maxHeight: "210px", overflowY: "auto" }}>
+						{profiles.map((p) => {
+							const isActive = activeProfile?.id === p.id;
+							return (
+								<div
+									key={p.id}
+									style={{
+										display: "flex",
+										alignItems: "center",
+										gap: "10px",
+										backgroundColor: C.grey,
+										border: `1px solid ${isActive ? C.yellow : C.borderGrey}`,
+										borderRadius: "6px",
+										padding: "12px 14px",
+									}}
+								>
+									<User size={16} style={{ color: isActive ? C.yellow : C.metaGrey, flexShrink: 0 }} />
+									<div style={{ flex: 1, minWidth: 0 }}>
+										<div
+											style={{
+												fontSize: "13px",
+												fontWeight: 600,
+												color: C.white,
+											}}
+										>
+											{p.name}
+											{p.is_default && (
+												<span
+													style={{
+														fontSize: "10px",
+														color: C.yellow,
+														marginLeft: "8px",
+														fontWeight: 700,
+														textTransform: "uppercase",
+													}}
+												>
+													{t("profile.default")}
+												</span>
+											)}
+											{isActive && (
+												<span
+													style={{
+														fontSize: "10px",
+														color: "#81c784",
+														marginLeft: "8px",
+														fontWeight: 700,
+													}}
+												>
+													{t("profile.current")}
+												</span>
+											)}
+										</div>
+										<div style={{ fontSize: "11px", color: C.metaGrey, marginTop: "2px" }}>
+											{t("profile.mod_count", { count: p.mod_count })}
+										</div>
+									</div>
+									<div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
+										{!isActive && (
+											<Button
+												onClick={async () => {
+													try {
+														await invoke("switch_profile", { profileId: p.id });
+														await loadProfiles();
+														if (onProfilesChanged) onProfilesChanged();
+													} catch (e) {
+														alert(String(e));
+													}
+												}}
+												size="sm"
+												variant="outline"
+												style={{ padding: "4px 10px", height: "auto", fontSize: "10px" }}
+												className="border-[#414141] text-[#c6c6c6] hover:bg-[#414141] font-semibold uppercase"
+											>
+												{t("profile.select")}
+											</Button>
+										)}
+										{!p.is_default && (
+											<Button
+												onClick={async () => {
+													try {
+														await invoke("set_default_profile", { profileId: p.id });
+														await loadProfiles();
+														if (onProfilesChanged) onProfilesChanged();
+													} catch (e) {
+														console.error(e);
+													}
+												}}
+												size="sm"
+												variant="outline"
+												style={{ padding: "4px 8px", height: "auto", fontSize: "10px" }}
+												className="border-[#414141] text-[#c6c6c6] hover:bg-[#414141] font-semibold uppercase"
+												title={t("profile.set_default")}
+											>
+												<Check size={10} />
+											</Button>
+										)}
+										<Button
+											onClick={async () => {
+												try {
+													const code = await invoke<string>("export_profile", { profileId: p.id });
+													await writeText(code);
+													alert(t("profile.export_copied"));
+												} catch (e) {
+													alert(String(e));
+												}
+											}}
+											size="sm"
+											variant="outline"
+											style={{ padding: "4px 8px", height: "auto", fontSize: "10px" }}
+											className="border-[#414141] text-[#c6c6c6] hover:bg-[#414141] font-semibold uppercase"
+											title={t("profile.export_btn")}
+										>
+											<Download size={10} />
+										</Button>
+										{!p.is_default && !isActive && (
+											<Button
+												onClick={async () => {
+													if (!window.confirm(t("profile.delete_confirm"))) return;
+													try {
+														await invoke("delete_profile", { profileId: p.id });
+														await loadProfiles();
+														if (onProfilesChanged) onProfilesChanged();
+													} catch (e) {
+														alert(String(e));
+													}
+												}}
+												size="sm"
+												variant="outline"
+												style={{ padding: "4px 8px", height: "auto", fontSize: "10px" }}
+												className="border-[#414141] text-[#e57373] hover:bg-[#414141] font-semibold uppercase"
+												title={t("profile.delete")}
+											>
+												<Trash2 size={10} />
+											</Button>
+										)}
+									</div>
+								</div>
+							);
+						})}
+					</div>
+				)}
+
+				<div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+					<Button
+						onClick={async () => {
+							const name = window.prompt(t("profile.name_placeholder"));
+							if (!name?.trim()) return;
+							try {
+								await invoke("create_profile", { name: name.trim() });
+								await loadProfiles();
+								if (onProfilesChanged) onProfilesChanged();
+							} catch (e) {
+								console.error(e);
+							}
+						}}
+						size="sm"
+						variant="outline"
+						style={{ padding: "6px 14px", height: "auto" }}
+						className="border-[#414141] text-[#c6c6c6] hover:bg-[#414141] text-[11px] font-semibold uppercase"
+					>
+						<Plus size={11} />
+						{t("profile.create_new")}
+					</Button>
+					<Button
+						onClick={handleImport}
+						disabled={importing}
+						size="sm"
+						variant="outline"
+						style={{ padding: "6px 14px", height: "auto" }}
+						className="border-[#414141] text-[#c6c6c6] hover:bg-[#414141] text-[11px] font-semibold uppercase"
+					>
+						<Upload size={11} />
+						{importing ? t("profile.importing") : t("profile.import_btn")}
+					</Button>
+				</div>
 			</div>
 
 			{/* Section: Localização dos Mods */}

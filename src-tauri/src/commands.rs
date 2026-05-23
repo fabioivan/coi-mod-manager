@@ -1,6 +1,23 @@
 use tauri::{Emitter, Manager, State};
 use crate::db::Database;
-use crate::models::Mod;
+use crate::models::{ExportData, ExportMod, Mod, Profile};
+use base64::{Engine as _, engine::general_purpose};
+use std::sync::OnceLock;
+
+fn http_client() -> &'static reqwest::Client {
+    static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+    CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .user_agent("CoI-Mod-Manager/1.0")
+            .build()
+            .expect("Failed to create HTTP client")
+    })
+}
+
+fn generate_id() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    format!("p{}", SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos())
+}
 
 #[derive(serde::Serialize, Clone)]
 pub struct UpdateInfo {
@@ -40,6 +57,246 @@ pub async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
         ).await.map_err(|e| e.to_string())?;
     }
     Ok(())
+}
+
+// ─── Profile Commands ───
+
+#[tauri::command]
+pub async fn get_profiles(db: State<'_, Database>) -> Result<Vec<Profile>, String> {
+    db.get_profiles().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn create_profile(db: State<'_, Database>, name: String) -> Result<Profile, String> {
+    let id = generate_id();
+    db.create_profile(&id, &name).await.map_err(|e| e.to_string())?;
+    let profiles = db.get_profiles().await.map_err(|e| e.to_string())?;
+    profiles.into_iter().find(|p| p.id == id)
+        .ok_or_else(|| "Failed to create profile".to_string())
+}
+
+#[tauri::command]
+pub async fn rename_profile(db: State<'_, Database>, profile_id: String, name: String) -> Result<(), String> {
+    db.rename_profile(&profile_id, &name).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn delete_profile(
+    app: tauri::AppHandle,
+    db: State<'_, Database>,
+    profile_id: String,
+) -> Result<(), String> {
+    let active = db.get_active_profile_id().await.map_err(|e| e.to_string())?;
+    if active.as_deref() == Some(&profile_id) {
+        return Err("Cannot delete the active profile".to_string());
+    }
+    db.delete_profile(&profile_id).await.map_err(|e| e.to_string())?;
+    let _ = app.emit("profile-deleted", &profile_id);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn set_default_profile(db: State<'_, Database>, profile_id: String) -> Result<(), String> {
+    db.set_default_profile(&profile_id).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_active_profile(db: State<'_, Database>) -> Result<Option<Profile>, String> {
+    let id = db.get_active_profile_id().await.map_err(|e| e.to_string())?;
+    match id {
+        Some(id) => {
+            let profiles = db.get_profiles().await.map_err(|e| e.to_string())?;
+            Ok(profiles.into_iter().find(|p| p.id == id))
+        }
+        None => Ok(None),
+    }
+}
+
+#[tauri::command]
+pub async fn switch_profile(
+    app: tauri::AppHandle,
+    db: State<'_, Database>,
+    profile_id: String,
+) -> Result<(), String> {
+    let folder = db.get_setting("mods_folder").await
+        .map_err(|e| e.to_string())?
+        .ok_or("Mods folder not configured. Go to Settings.")?;
+
+    let active_id = db.get_active_profile_id().await.map_err(|e| e.to_string())?;
+
+    // Remove symlinks from current active profile
+    if let Some(ref current_id) = active_id {
+        let current_mods = db.get_profile_mods(current_id).await.map_err(|e| e.to_string())?;
+        for pm in &current_mods {
+            if let Some(ref fname) = pm.folder_name {
+                let link = std::path::Path::new(&folder).join(fname);
+                let _ = remove_any(&link);
+            }
+        }
+    }
+
+    // Create symlinks for target profile
+    let target_mods = db.get_profile_mods(&profile_id).await.map_err(|e| e.to_string())?;
+    for pm in &target_mods {
+        if let Some(ref pool_path) = pm.pool_path {
+            let pool_dir = std::path::Path::new(pool_path);
+            if pool_dir.exists() {
+                if let Some(ref fname) = pm.folder_name {
+                    let link = std::path::Path::new(&folder).join(fname);
+                    let _ = remove_any(&link);
+                    create_symlink(pool_dir, &link)?;
+                }
+            }
+        }
+    }
+
+    // Update active profile in DB
+    db.set_active_profile_id(&profile_id).await.map_err(|e| e.to_string())?;
+    db.update_is_installed_from_profile(&profile_id).await.map_err(|e| e.to_string())?;
+
+    let _ = app.emit("mods-updated", ());
+    Ok(())
+}
+
+const EXPORT_PREFIX: &str = "coiexport_";
+
+#[derive(serde::Serialize)]
+pub(crate) struct ImportResult {
+    profile: Profile,
+    mods_installed: usize,
+}
+
+#[tauri::command]
+pub async fn export_profile(
+    db: State<'_, Database>,
+    profile_id: String,
+) -> Result<String, String> {
+    let profiles = db.get_profiles().await.map_err(|e| e.to_string())?;
+    let profile = profiles.into_iter().find(|p| p.id == profile_id)
+        .ok_or_else(|| "Profile not found".to_string())?;
+
+    let profile_mods = db.get_profile_mods(&profile_id).await.map_err(|e| e.to_string())?;
+    let all_mods = db.get_all_mods().await.map_err(|e| e.to_string())?;
+
+    let mut export_mods = Vec::with_capacity(profile_mods.len());
+    for pm in &profile_mods {
+        if let Some(m) = all_mods.iter().find(|m| m.id == pm.mod_id) {
+            export_mods.push(ExportMod {
+                id: pm.mod_id.clone(),
+                name: m.name.clone(),
+                version: pm.version_installed.clone(),
+                url: m.url.clone(),
+            });
+        }
+    }
+
+    let data = ExportData {
+        format_version: 1,
+        name: profile.name,
+        mods: export_mods,
+    };
+
+    let json = serde_json::to_string(&data).map_err(|e| e.to_string())?;
+    let encoded = general_purpose::URL_SAFE_NO_PAD.encode(json.as_bytes());
+    Ok(format!("{}{}", EXPORT_PREFIX, encoded))
+}
+
+#[tauri::command]
+pub async fn import_profile(
+    app: tauri::AppHandle,
+    db: State<'_, Database>,
+    data: String,
+) -> Result<ImportResult, String> {
+    let stripped = data.strip_prefix(EXPORT_PREFIX).unwrap_or(&data);
+    let bytes = general_purpose::URL_SAFE_NO_PAD
+        .decode(stripped).map_err(|e| format!("Invalid export code: {}", e))?;
+    let export: ExportData = serde_json::from_slice(&bytes)
+        .map_err(|e| format!("Invalid export data: {}", e))?;
+
+    if export.format_version != 1 {
+        return Err(format!("Unsupported format version: {}", export.format_version));
+    }
+
+    // Generate unique profile name
+    let profile_name = {
+        let existing = db.get_profiles().await.map_err(|e| e.to_string())?;
+        let names: std::collections::HashSet<String> = existing.into_iter().map(|p| p.name).collect();
+        let mut name = export.name.clone();
+        let mut counter = 2;
+        while names.contains(&name) {
+            name = format!("{} ({})", export.name, counter);
+            counter += 1;
+        }
+        name
+    };
+
+    let profile_id = generate_id();
+    db.create_profile(&profile_id, &profile_name).await.map_err(|e| e.to_string())?;
+
+    let folder = db.get_setting("mods_folder").await
+        .map_err(|e| e.to_string())?
+        .ok_or("Mods folder not configured. Go to Settings.")?;
+
+    let mut count = 0usize;
+
+    for em in &export.mods {
+        // Ensure mod exists in DB with at least minimal info
+        db.upsert_mod_minimal(&em.id, &em.name, &em.version, &em.url)
+            .await.map_err(|e| e.to_string())?;
+
+        let (folder_name, pool_dir) = extract_to_pool(
+            &app, &em.id, &em.name, &em.version, &em.url,
+        ).await?;
+
+        let link = std::path::Path::new(&folder).join(&folder_name);
+        remove_symlink(&link)?;
+        create_symlink(&pool_dir, &link)?;
+
+        db.add_profile_mod(
+            &profile_id, &em.id, &em.version,
+            Some(pool_dir.to_str().unwrap_or("")), Some(&folder_name),
+        ).await.map_err(|e| e.to_string())?;
+
+        count += 1;
+    }
+
+    db.update_is_installed_from_profile(&profile_id).await.map_err(|e| e.to_string())?;
+    let _ = app.emit("mods-updated", ());
+
+    let profiles = db.get_profiles().await.map_err(|e| e.to_string())?;
+    let profile = profiles.into_iter().find(|p| p.id == profile_id)
+        .ok_or_else(|| "Failed to retrieve created profile".to_string())?;
+
+    Ok(ImportResult { profile, mods_installed: count })
+}
+
+fn remove_any(path: &std::path::Path) -> std::io::Result<()> {
+    if path.is_symlink() || path.is_file() {
+        std::fs::remove_file(path)
+    } else if path.is_dir() {
+        std::fs::remove_dir_all(path)
+    } else {
+        Ok(())
+    }
+}
+
+fn create_symlink(target: &std::path::Path, link: &std::path::Path) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        std::os::windows::fs::symlink_dir(target, link).map_err(|e| e.to_string())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        std::os::unix::fs::symlink(target, link).map_err(|e| e.to_string())
+    }
+}
+
+fn remove_symlink(link: &std::path::Path) -> Result<(), String> {
+    if link.is_symlink() || link.exists() {
+        std::fs::remove_file(link).map_err(|e| e.to_string())
+    } else {
+        Ok(())
+    }
 }
 
 pub async fn check_app_update_on_startup(app: &tauri::AppHandle) {
@@ -170,6 +427,118 @@ pub async fn run_scrape(app: &tauri::AppHandle, order_by: &str, time_range: &str
     }
 }
 
+// ─── Pool + Symlink Helpers ───
+
+fn get_pool_base(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let pool = data_dir.join("mod_pool");
+    std::fs::create_dir_all(&pool).map_err(|e| e.to_string())?;
+    Ok(pool)
+}
+
+fn find_manifest_dir(dir: &std::path::Path) -> Option<(String, std::path::PathBuf)> {
+    if dir.join("manifest.json").exists() {
+        return dir.file_name()
+            .and_then(|n| n.to_str())
+            .map(|s| (s.to_string(), dir.to_path_buf()));
+    }
+    let entries = std::fs::read_dir(dir).ok()?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() && path.join("manifest.json").exists() {
+            return entry.file_name()
+                .into_string()
+                .ok()
+                .map(|name| (name, path));
+        }
+    }
+    None
+}
+
+async fn download_zip_to_file(mod_page_url: &str, dest: &std::path::Path) -> Result<(), String> {
+    use std::io::Write;
+    let client = http_client();
+    let download_url = crate::scraper::resolve_download_url(client, mod_page_url).await?;
+    let bytes = client
+        .get(&download_url)
+        .send().await.map_err(|e| e.to_string())?
+        .bytes().await.map_err(|e| e.to_string())?
+        .to_vec();
+    let mut file = std::fs::File::create(dest).map_err(|e| e.to_string())?;
+    file.write_all(&bytes).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+async fn extract_to_pool(
+    app: &tauri::AppHandle,
+    mod_id: &str,
+    mod_name: &str,
+    version: &str,
+    mod_page_url: &str,
+) -> Result<(String, std::path::PathBuf), String> {
+    let pool_base = get_pool_base(app)?;
+    let version_dir = pool_base.join(format!("{}-{}", mod_id, version));
+
+    if version_dir.join("manifest.json").exists() || version_dir.is_dir() {
+        if let Some((fname, _)) = find_manifest_dir(&version_dir) {
+            return Ok((fname, version_dir));
+        }
+    }
+
+    let zip_path = std::env::temp_dir().join(format!("coi_dl_{}.zip", mod_id));
+    download_zip_to_file(mod_page_url, &zip_path).await?;
+
+    let file = std::fs::File::open(&zip_path).map_err(|e| e.to_string())?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
+
+    let temp_dir = std::env::temp_dir().join(format!("coi_extract_{}", mod_id));
+    let _ = std::fs::remove_dir_all(&temp_dir);
+    std::fs::create_dir_all(&temp_dir).map_err(|e| e.to_string())?;
+    archive.extract(&temp_dir).map_err(|e| e.to_string())?;
+    std::mem::drop(archive);
+    let _ = std::fs::remove_file(&zip_path);
+
+    let folder_name: String;
+    if let Some((fname, fpath)) = find_manifest_dir(&temp_dir) {
+        folder_name = fname;
+        if fpath != temp_dir {
+            let _ = std::fs::remove_dir_all(&version_dir);
+            std::fs::rename(&fpath, &version_dir).map_err(|e| e.to_string())?;
+        } else {
+            if version_dir.exists() {
+                std::fs::remove_dir_all(&version_dir).map_err(|e| e.to_string())?;
+            }
+            std::fs::rename(&temp_dir, &version_dir).map_err(|e| e.to_string())?;
+        }
+    } else {
+        let safe_name = mod_name.to_lowercase().replace([' ', '/', '\\', ':'], "-");
+        let wrapped = version_dir.join(&safe_name);
+        std::fs::create_dir_all(&wrapped).map_err(|e| e.to_string())?;
+        for entry in std::fs::read_dir(&temp_dir).map_err(|e| e.to_string())? {
+            let e = entry.map_err(|e| e.to_string())?;
+            let src = e.path();
+            let dst = wrapped.join(e.file_name());
+            if src.is_dir() {
+                std::fs::rename(&src, &dst).map_err(|e| e.to_string())?;
+            } else {
+                std::fs::copy(&src, &dst).map_err(|e| e.to_string())?;
+            }
+        }
+        folder_name = safe_name;
+    }
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+    Ok((folder_name, version_dir))
+}
+
+async fn get_active_profile_id(db: &Database) -> Result<String, String> {
+    db.get_active_profile_id().await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "No active profile".to_string())
+}
+
+// ─── Install / Update / Uninstall / Update All ───
+
 #[tauri::command]
 pub async fn update_all_mods(
     app: tauri::AppHandle,
@@ -178,45 +547,40 @@ pub async fn update_all_mods(
     let folder = db.get_setting("mods_folder").await
         .map_err(|e| e.to_string())?
         .ok_or("Mods folder not configured. Go to Settings.")?;
+    let profile_id = get_active_profile_id(&db).await?;
 
     let ids = db.get_outdated_ids().await.map_err(|e| e.to_string())?;
     let count = ids.len();
 
-    for id in &ids {
-        let mod_page_url = db.get_mod_page_url(id).await
+    for mod_id in &ids {
+        let mod_entry = db.get_all_mods().await.map_err(|e| e.to_string())?
+            .into_iter().find(|m| &m.id == mod_id)
+            .ok_or_else(|| format!("Mod id={} not found", mod_id))?;
+
+        let mod_page_url = db.get_mod_page_url(mod_id).await
             .map_err(|e| e.to_string())?
-            .ok_or_else(|| format!("Mod id={} not found in database", id))?;
-        download_and_extract(&mod_page_url, &folder).await?;
+            .ok_or_else(|| format!("Mod id={} not found in database", mod_id))?;
+
+        let (folder_name, pool_dir) = extract_to_pool(
+            &app, mod_id, &mod_entry.name, &mod_entry.version_available, &mod_page_url,
+        ).await?;
+
+        let link = std::path::Path::new(&folder).join(&folder_name);
+        remove_symlink(&link)?;
+        create_symlink(&pool_dir, &link)?;
+
+        db.add_profile_mod(
+            &profile_id, mod_id, &mod_entry.version_available,
+            Some(pool_dir.to_str().unwrap_or("")), Some(&folder_name),
+        ).await.map_err(|e| e.to_string())?;
     }
 
     if count > 0 {
-        run_scan_installed(&app).await;
-
+        db.update_is_installed_from_profile(&profile_id).await.map_err(|e| e.to_string())?;
         let _ = app.emit("mods-updated-notification", count);
     }
 
     Ok(count)
-}
-
-async fn download_and_extract(mod_page_url: &str, mods_folder: &str) -> Result<(), String> {
-    let client = reqwest::Client::builder()
-        .user_agent("CoI-Mod-Manager/1.0")
-        .build().map_err(|e| e.to_string())?;
-
-    let download_url = crate::scraper::resolve_download_url(&client, mod_page_url).await?;
-
-    let bytes = client
-        .get(&download_url)
-        .send().await.map_err(|e| e.to_string())?
-        .bytes().await.map_err(|e| e.to_string())?
-        .to_vec();
-
-    let cursor = std::io::Cursor::new(bytes);
-    let mut archive = zip::ZipArchive::new(cursor).map_err(|e| e.to_string())?;
-    let dest = std::path::Path::new(mods_folder);
-    archive.extract(dest).map_err(|e| e.to_string())?;
-
-    Ok(())
 }
 
 #[tauri::command]
@@ -228,13 +592,31 @@ pub async fn install_mod(
     let folder = db.get_setting("mods_folder").await
         .map_err(|e| e.to_string())?
         .ok_or("Mods folder not configured. Go to Settings.")?;
+    let profile_id = get_active_profile_id(&db).await?;
+
+    let mod_entry = db.get_all_mods().await.map_err(|e| e.to_string())?
+        .into_iter().find(|m| m.id == mod_id)
+        .ok_or_else(|| format!("Mod id={} not found in database", mod_id))?;
 
     let mod_page_url = db.get_mod_page_url(&mod_id).await
         .map_err(|e| e.to_string())?
         .ok_or_else(|| format!("Mod id={} not found in database", mod_id))?;
 
-    download_and_extract(&mod_page_url, &folder).await?;
-    run_scan_installed(&app).await;
+    let (folder_name, pool_dir) = extract_to_pool(
+        &app, &mod_id, &mod_entry.name, &mod_entry.version_available, &mod_page_url,
+    ).await?;
+
+    let link = std::path::Path::new(&folder).join(&folder_name);
+    remove_symlink(&link)?;
+    create_symlink(&pool_dir, &link)?;
+
+    db.add_profile_mod(
+        &profile_id, &mod_id, &mod_entry.version_available,
+        Some(pool_dir.to_str().unwrap_or("")), Some(&folder_name),
+    ).await.map_err(|e| e.to_string())?;
+
+    db.update_is_installed_from_profile(&profile_id).await.map_err(|e| e.to_string())?;
+    let _ = app.emit("mods-updated", ());
     Ok(())
 }
 
@@ -247,13 +629,31 @@ pub async fn update_mod(
     let folder = db.get_setting("mods_folder").await
         .map_err(|e| e.to_string())?
         .ok_or("Mods folder not configured. Go to Settings.")?;
+    let profile_id = get_active_profile_id(&db).await?;
+
+    let mod_entry = db.get_all_mods().await.map_err(|e| e.to_string())?
+        .into_iter().find(|m| m.id == mod_id)
+        .ok_or_else(|| format!("Mod id={} not found in database", mod_id))?;
 
     let mod_page_url = db.get_mod_page_url(&mod_id).await
         .map_err(|e| e.to_string())?
         .ok_or_else(|| format!("Mod id={} not found in database", mod_id))?;
 
-    download_and_extract(&mod_page_url, &folder).await?;
-    run_scan_installed(&app).await;
+    let (folder_name, pool_dir) = extract_to_pool(
+        &app, &mod_id, &mod_entry.name, &mod_entry.version_available, &mod_page_url,
+    ).await?;
+
+    let link = std::path::Path::new(&folder).join(&folder_name);
+    remove_symlink(&link)?;
+    create_symlink(&pool_dir, &link)?;
+
+    db.add_profile_mod(
+        &profile_id, &mod_id, &mod_entry.version_available,
+        Some(pool_dir.to_str().unwrap_or("")), Some(&folder_name),
+    ).await.map_err(|e| e.to_string())?;
+
+    db.update_is_installed_from_profile(&profile_id).await.map_err(|e| e.to_string())?;
+    let _ = app.emit("mods-updated", ());
     Ok(())
 }
 
@@ -266,57 +666,25 @@ pub async fn uninstall_mod(
     let folder = db.get_setting("mods_folder").await
         .map_err(|e| e.to_string())?
         .ok_or("Mods folder not configured. Go to Settings.")?;
+    let profile_id = get_active_profile_id(&db).await?;
 
-    let folder_path = std::path::Path::new(&folder);
-    if !folder_path.exists() {
-        return Err(format!("Folder not found: {}", folder));
+    let profile_mods = db.get_profile_mods(&profile_id).await.map_err(|e| e.to_string())?;
+    let pm = profile_mods.iter().find(|p| p.mod_id == mod_id)
+        .ok_or_else(|| format!("Mod id={} not found in active profile", mod_id))?;
+
+    if let Some(ref fname) = pm.folder_name {
+        let link = std::path::Path::new(&folder).join(fname);
+        remove_symlink(&link)?;
     }
 
-    let all_mods = db.get_all_mods().await.map_err(|e| e.to_string())?;
-    let mod_entry = all_mods.iter().find(|m| m.id == mod_id)
-        .ok_or_else(|| format!("Mod id={} not found in database", mod_id))?;
+    db.remove_profile_mod(&profile_id, &mod_id).await.map_err(|e| e.to_string())?;
+    db.update_is_installed_from_profile(&profile_id).await.map_err(|e| e.to_string())?;
 
-    let entries = std::fs::read_dir(folder_path).map_err(|e| e.to_string())?;
-    let mut found = false;
-
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if !path.is_dir() { continue; }
-
-        let folder_name = path.file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("")
-            .to_lowercase();
-
-        let manifest_path = path.join("manifest.json");
-        if !manifest_path.exists() { continue; }
-        let Ok(manifest_str) = std::fs::read_to_string(&manifest_path) else { continue; };
-        let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&manifest_str) else { continue; };
-
-        let manifest_id = manifest["id"].as_str().unwrap_or("").to_lowercase();
-        let display_name = manifest["display_name"].as_str().unwrap_or("").to_lowercase();
-
-        let slug = mod_entry.url.split('/').last().unwrap_or("").to_lowercase();
-        let matched = slug == manifest_id
-            || slug == folder_name
-            || mod_entry.name.to_lowercase() == display_name
-            || mod_entry.name.to_lowercase().replace(' ', "-") == manifest_id;
-
-        if matched {
-            std::fs::remove_dir_all(&path).map_err(|e| format!("Failed to remove {}: {}", path.display(), e))?;
-            found = true;
-            break;
-        }
-    }
-
-    if !found {
-        return Err(format!("Mod folder '{}' not found in {}", mod_entry.name, folder));
-    }
-
-    db.set_uninstalled(&mod_id).await.map_err(|e| e.to_string())?;
     let _ = app.emit("mods-updated", ());
     Ok(())
 }
+
+// ─── Scan ───
 
 #[tauri::command]
 pub async fn scan_installed_mods(
@@ -326,6 +694,7 @@ pub async fn scan_installed_mods(
     let folder = db.get_setting("mods_folder").await
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "Mods folder not configured".to_string())?;
+    let profile_id = get_active_profile_id(&db).await?;
 
     let folder_path = std::path::Path::new(&folder);
     if !folder_path.exists() {
@@ -333,49 +702,52 @@ pub async fn scan_installed_mods(
     }
 
     let all_mods = db.get_all_mods().await.map_err(|e| e.to_string())?;
-
-    let entries = std::fs::read_dir(folder_path).map_err(|e| e.to_string())?;
+    let pool_base = get_pool_base(&app)?;
     let mut found_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
 
-    for entry in entries.flatten() {
+    for entry in std::fs::read_dir(folder_path).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
         let path = entry.path();
-        if !path.is_dir() { continue; }
+        if !path.is_dir() && !path.is_symlink() { continue; }
 
-        let folder_name = path.file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("")
-            .to_lowercase();
+        let folder_name = entry.file_name().to_string_lossy().to_lowercase();
 
-        let manifest_path = path.join("manifest.json");
+        let manifest_path = if path.is_symlink() {
+            let target = std::fs::read_link(&path).map_err(|e| e.to_string())?;
+            target.join("manifest.json")
+        } else {
+            path.join("manifest.json")
+        };
+
         if !manifest_path.exists() { continue; }
-
         let Ok(manifest_str) = std::fs::read_to_string(&manifest_path) else { continue; };
         let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&manifest_str) else { continue; };
-
         let manifest_id = manifest["id"].as_str().unwrap_or("").to_lowercase();
         let display_name = manifest["display_name"].as_str().unwrap_or("").to_lowercase();
         let version = manifest["version"].as_str().unwrap_or("").to_string();
 
         let matched = all_mods.iter().find(|m| {
             let slug = m.url.split('/').last().unwrap_or("").to_lowercase();
-            slug == manifest_id
-                || slug == folder_name
+            slug == manifest_id || slug == folder_name
                 || m.name.to_lowercase() == display_name
                 || m.name.to_lowercase().replace(' ', "-") == manifest_id
         });
 
         if let Some(m) = matched {
-            db.set_installed(&m.id, &version).await.map_err(|e| e.to_string())?;
+            let pool_dir = pool_base.join(format!("{}-{}", m.id, version));
+            let actual_folder = entry.file_name().to_string_lossy().to_string();
+            let pool_path_str = if pool_dir.exists() { Some(pool_dir.to_str().unwrap_or("").to_string()) } else { None };
+
+            db.add_profile_mod(
+                &profile_id, &m.id, &version,
+                pool_path_str.as_deref(),
+                Some(&actual_folder),
+            ).await.map_err(|e| e.to_string())?;
             found_ids.insert(m.id.clone());
         }
     }
 
-    // Desmarca mods que não foram encontrados no disco
-    for m in &all_mods {
-        if m.is_installed && !found_ids.contains(&m.id) {
-            db.set_uninstalled(&m.id).await.map_err(|e| e.to_string())?;
-        }
-    }
+    db.update_is_installed_from_profile(&profile_id).await.map_err(|e| e.to_string())?;
 
     let _ = app.emit("mods-updated", ());
     Ok(found_ids.len())
@@ -383,69 +755,73 @@ pub async fn scan_installed_mods(
 
 pub async fn run_scan_installed(app: &tauri::AppHandle) {
     let db = app.state::<Database>();
-    match scan_installed_mods_inner(&db).await {
-        Ok((found, total)) => {
-            let _ = app.emit("mods-updated", ());
-            println!("Scan: {}/{} installed mods detected", found, total);
-        }
-        Err(e) => eprintln!("Installed scan error: {e}"),
-    }
-}
-
-async fn scan_installed_mods_inner(db: &Database) -> Result<(usize, usize), String> {
-    let folder = db.get_setting("mods_folder").await
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| "mods_folder not configured".to_string())?;
+    let profile_id = match get_active_profile_id(&db).await {
+        Ok(id) => id,
+        Err(_) => return,
+    };
+    let folder = match db.get_setting("mods_folder").await {
+        Ok(Some(f)) => f,
+        _ => return,
+    };
 
     let folder_path = std::path::Path::new(&folder);
-    if !folder_path.exists() {
-        return Err(format!("Folder not found: {}", folder));
-    }
+    if !folder_path.exists() { return; }
 
-    let all_mods = db.get_all_mods().await.map_err(|e| e.to_string())?;
-    let total = all_mods.len();
-    let entries = std::fs::read_dir(folder_path).map_err(|e| e.to_string())?;
+    let all_mods = match db.get_all_mods().await {
+        Ok(m) => m,
+        Err(_) => return,
+    };
+    let pool_base = match get_pool_base(app) {
+        Ok(p) => p,
+        Err(_) => return,
+    };
     let mut found_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
 
-    for entry in entries.flatten() {
+    for entry in std::fs::read_dir(folder_path).into_iter().flatten() {
+        let entry = match entry { Ok(e) => e, _ => continue };
         let path = entry.path();
-        if !path.is_dir() { continue; }
+        if !path.is_dir() && !path.is_symlink() { continue; }
+        let folder_name_lower = entry.file_name().to_string_lossy().to_lowercase();
 
-        let folder_name = path.file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("")
-            .to_lowercase();
+        let manifest_path = if path.is_symlink() {
+            match std::fs::read_link(&path) {
+                Ok(t) => t.join("manifest.json"),
+                Err(_) => continue,
+            }
+        } else {
+            path.join("manifest.json")
+        };
 
-        let manifest_path = path.join("manifest.json");
         if !manifest_path.exists() { continue; }
         let Ok(manifest_str) = std::fs::read_to_string(&manifest_path) else { continue; };
         let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&manifest_str) else { continue; };
-
         let manifest_id = manifest["id"].as_str().unwrap_or("").to_lowercase();
         let display_name = manifest["display_name"].as_str().unwrap_or("").to_lowercase();
         let version = manifest["version"].as_str().unwrap_or("").to_string();
 
         let matched = all_mods.iter().find(|m| {
             let slug = m.url.split('/').last().unwrap_or("").to_lowercase();
-            slug == manifest_id
-                || slug == folder_name
+            slug == manifest_id || slug == folder_name_lower
                 || m.name.to_lowercase() == display_name
                 || m.name.to_lowercase().replace(' ', "-") == manifest_id
         });
 
         if let Some(m) = matched {
-            let _ = db.set_installed(&m.id, &version).await;
+            let pool_dir = pool_base.join(format!("{}-{}", m.id, version));
+            let actual_folder = entry.file_name().to_string_lossy().to_string();
+            let pool_path_str = if pool_dir.exists() { Some(pool_dir.to_str().unwrap_or("").to_string()) } else { None };
+            let _ = db.add_profile_mod(
+                &profile_id, &m.id, &version,
+                pool_path_str.as_deref(),
+                Some(&actual_folder),
+            ).await;
             found_ids.insert(m.id.clone());
         }
     }
 
-    for m in &all_mods {
-        if m.is_installed && !found_ids.contains(&m.id) {
-            let _ = db.set_uninstalled(&m.id).await;
-        }
-    }
-
-    Ok((found_ids.len(), total))
+    let _ = db.update_is_installed_from_profile(&profile_id).await;
+    let _ = app.emit("mods-updated", ());
+    println!("Scan: {}/{} installed mods detected", found_ids.len(), all_mods.len());
 }
 
 #[tauri::command]

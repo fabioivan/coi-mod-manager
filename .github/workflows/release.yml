@@ -60,12 +60,20 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: 'CoI Mod Manager ${{ github.ref_name }}'
           releaseBody: |
-            ## Novidades
-            Veja os commits para detalhes das mudanças.
+            ## 🎮 CoI Mod Manager ${{ github.ref_name }}
 
-            ## Instalação
+            ### ✨ Novidades
+            - Perfis de mods: crie, alterne, exporte e importe perfis isolados
+            - Pool de mods: mods compartilhados entre perfis sem re-download
+            - Nova tela de seleção de perfil ao iniciar
+            - Suporte a capturas de tela no README
+            - Diversas correções de memória e estabilidade
+
+            ### 🔧 Instalação
             - **Windows**: baixe o `.msi` ou `.exe` (NSIS)
             - **Linux**: baixe o `.AppImage` ou `.deb`
+
+            > Veja os commits para detalhes completos das mudanças.
           releaseDraft: true
           prerelease: false
           includeUpdaterJson: true

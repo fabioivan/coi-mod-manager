@@ -1,7 +1,7 @@
 use rusqlite::{Connection, Result, params};
 use std::path::Path;
 use tokio::sync::Mutex;
-use crate::models::Mod;
+use crate::models::{Mod, Profile, ProfileMod};
 
 pub struct Database(pub Mutex<Connection>);
 
@@ -85,6 +85,44 @@ impl Database {
             ")?;
         }
 
+        let v8: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM schema_migrations WHERE version = 8", [], |r| r.get(0))?;
+        if v8 == 0 {
+            conn.execute_batch("
+                CREATE TABLE IF NOT EXISTS profiles (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    is_default INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+                );
+                CREATE TABLE IF NOT EXISTS profile_mods (
+                    profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+                    mod_id TEXT NOT NULL REFERENCES mods(id),
+                    version_installed TEXT NOT NULL,
+                    pool_path TEXT,
+                    folder_name TEXT,
+                    PRIMARY KEY (profile_id, mod_id)
+                );
+                INSERT OR IGNORE INTO profiles (id, name, is_default)
+                VALUES ('default', 'Default', 1);
+                INSERT OR IGNORE INTO settings (key, value) VALUES ('active_profile', 'default');
+                INSERT INTO schema_migrations (version) VALUES (8);
+            ")?;
+
+            let existing: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM profile_mods WHERE profile_id = 'default'",
+                [], |r| r.get(0))?;
+            if existing == 0 {
+                conn.execute_batch("
+                    INSERT INTO profile_mods (profile_id, mod_id, version_installed)
+                    SELECT 'default', id, version_installed
+                    FROM mods
+                    WHERE is_installed = 1 AND version_installed IS NOT NULL;
+                ")?;
+            }
+        }
+
         Ok(())
     }
 
@@ -160,64 +198,6 @@ impl Database {
         Ok(())
     }
 
-    pub async fn set_installed(&self, mod_id: &str, version: &str) -> Result<()> {
-        let conn = self.0.lock().await;
-        conn.execute(
-            "UPDATE mods SET is_installed = 1, version_installed = ?1 WHERE id = ?2",
-            params![version, mod_id],
-        )?;
-        Ok(())
-    }
-
-    pub async fn set_uninstalled(&self, mod_id: &str) -> Result<()> {
-        let conn = self.0.lock().await;
-        conn.execute(
-            "UPDATE mods SET is_installed = 0, version_installed = NULL WHERE id = ?1",
-            params![mod_id],
-        )?;
-        Ok(())
-    }
-
-    pub async fn get_outdated_mods(&self) -> Result<Vec<Mod>> {
-        let conn = self.0.lock().await;
-        let mut stmt = conn.prepare(
-            "SELECT id, name, author, description, category, devstate,
-                    game_version, scrape_rank, version_available, version_installed,
-                    updated_at, url, thumbnail, is_installed, last_scraped_at
-             FROM mods
-             WHERE is_installed = 1
-               AND version_installed IS NOT NULL
-               AND version_installed != version_available
-             ORDER BY name"
-        )?;
-
-        let mods = stmt.query_map([], |row| {
-            Ok(Mod {
-                id:                row.get(0)?,
-                name:              row.get(1)?,
-                author:            row.get(2)?,
-                description:       row.get(3)?,
-                category:          row.get(4)?,
-                devstate:          row.get(5)?,
-                game_version:      row.get(6)?,
-                scrape_rank:       row.get(7)?,
-                version_available: row.get(8)?,
-                version_installed: row.get(9)?,
-                updated_at:        row.get(10)?,
-                downloads:         row.get(11)?,
-                favorites:         row.get(12)?,
-                approval_pct:      row.get(13)?,
-                url:               row.get(14)?,
-                thumbnail:         row.get(15)?,
-                is_installed:      row.get::<_, i32>(16)? != 0,
-                last_scraped_at:   row.get(17)?,
-            })
-        })?
-        .collect::<Result<Vec<_>>>()?;
-
-        Ok(mods)
-    }
-
     pub async fn get_setting(&self, key: &str) -> Result<Option<String>> {
         let conn = self.0.lock().await;
         match conn.query_row(
@@ -237,6 +217,29 @@ impl Database {
             "INSERT INTO settings (key, value) VALUES (?1, ?2)
              ON CONFLICT(key) DO UPDATE SET value = excluded.value",
             params![key, value],
+        )?;
+        Ok(())
+    }
+
+    pub async fn upsert_mod_minimal(
+        &self,
+        mod_id: &str,
+        name: &str,
+        version: &str,
+        url: &str,
+    ) -> Result<()> {
+        let conn = self.0.lock().await;
+        conn.execute(
+            "INSERT INTO mods (id, name, version_available, url, author)
+             VALUES (?1, ?2, ?3, ?4, '')
+             ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                version_available = CASE
+                    WHEN excluded.version_available != '' THEN excluded.version_available
+                    ELSE mods.version_available
+                END,
+                url = excluded.url",
+            params![mod_id, name, version, url],
         )?;
         Ok(())
     }
@@ -269,7 +272,6 @@ impl Database {
 
     pub async fn needs_scrape(&self, min_age_hours: i64) -> Result<bool> {
         let conn = self.0.lock().await;
-        // Re-scrape se: nenhum mod recente OU mods existem mas faltam updated_at (schema antigo)
         let fresh: i64 = conn.query_row(
             "SELECT COUNT(*) FROM mods
              WHERE last_scraped_at > datetime('now', ?1)
@@ -279,4 +281,142 @@ impl Database {
         )?;
         Ok(fresh == 0)
     }
+
+    // ─── Profile methods ───
+
+    pub async fn get_profiles(&self) -> Result<Vec<Profile>> {
+        let conn = self.0.lock().await;
+        let mut stmt = conn.prepare(
+            "SELECT p.id, p.name, p.is_default, p.created_at, p.updated_at,
+                    COALESCE(pm.cnt, 0) as mod_count
+             FROM profiles p
+             LEFT JOIN (SELECT profile_id, COUNT(*) as cnt FROM profile_mods GROUP BY profile_id) pm
+               ON pm.profile_id = p.id
+             ORDER BY p.is_default DESC, p.name ASC"
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(Profile {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                is_default: row.get::<_, i32>(2)? != 0,
+                created_at: row.get(3)?,
+                updated_at: row.get(4)?,
+                mod_count: row.get(5)?,
+            })
+        })?.collect::<Result<Vec<_>>>()?;
+        Ok(rows)
+    }
+
+    pub async fn create_profile(&self, id: &str, name: &str) -> Result<()> {
+        let conn = self.0.lock().await;
+        conn.execute(
+            "INSERT INTO profiles (id, name) VALUES (?1, ?2)",
+            params![id, name],
+        )?;
+        Ok(())
+    }
+
+    pub async fn rename_profile(&self, id: &str, name: &str) -> Result<()> {
+        let conn = self.0.lock().await;
+        conn.execute(
+            "UPDATE profiles SET name = ?1, updated_at = datetime('now') WHERE id = ?2",
+            params![name, id],
+        )?;
+        Ok(())
+    }
+
+    pub async fn delete_profile(&self, id: &str) -> Result<()> {
+        let conn = self.0.lock().await;
+        conn.execute("DELETE FROM profiles WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    pub async fn set_default_profile(&self, id: &str) -> Result<()> {
+        let conn = self.0.lock().await;
+        conn.execute("UPDATE profiles SET is_default = 0", [])?;
+        conn.execute(
+            "UPDATE profiles SET is_default = 1, updated_at = datetime('now') WHERE id = ?1",
+            params![id],
+        )?;
+        Ok(())
+    }
+
+    pub async fn get_active_profile_id(&self) -> Result<Option<String>> {
+        self.get_setting("active_profile").await
+    }
+
+    pub async fn set_active_profile_id(&self, id: &str) -> Result<()> {
+        self.set_setting("active_profile", id).await
+    }
+
+    pub async fn get_profile_mods(&self, profile_id: &str) -> Result<Vec<ProfileMod>> {
+        let conn = self.0.lock().await;
+        let mut stmt = conn.prepare(
+            "SELECT mod_id, version_installed, pool_path, folder_name
+             FROM profile_mods
+             WHERE profile_id = ?1
+             ORDER BY mod_id"
+        )?;
+        let rows = stmt.query_map(params![profile_id], |row| {
+            Ok(ProfileMod {
+                mod_id: row.get(0)?,
+                version_installed: row.get(1)?,
+                pool_path: row.get(2)?,
+                folder_name: row.get(3)?,
+            })
+        })?.collect::<Result<Vec<_>>>()?;
+        Ok(rows)
+    }
+
+    pub async fn add_profile_mod(
+        &self,
+        profile_id: &str,
+        mod_id: &str,
+        version: &str,
+        pool_path: Option<&str>,
+        folder_name: Option<&str>,
+    ) -> Result<()> {
+        let conn = self.0.lock().await;
+        conn.execute(
+            "INSERT OR REPLACE INTO profile_mods (profile_id, mod_id, version_installed, pool_path, folder_name)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![profile_id, mod_id, version, pool_path, folder_name],
+        )?;
+        conn.execute(
+            "UPDATE profiles SET updated_at = datetime('now') WHERE id = ?1",
+            params![profile_id],
+        )?;
+        Ok(())
+    }
+
+    pub async fn remove_profile_mod(&self, profile_id: &str, mod_id: &str) -> Result<()> {
+        let conn = self.0.lock().await;
+        conn.execute(
+            "DELETE FROM profile_mods WHERE profile_id = ?1 AND mod_id = ?2",
+            params![profile_id, mod_id],
+        )?;
+        conn.execute(
+            "UPDATE profiles SET updated_at = datetime('now') WHERE id = ?1",
+            params![profile_id],
+        )?;
+        Ok(())
+    }
+
+    pub async fn update_is_installed_from_profile(&self, profile_id: &str) -> Result<()> {
+        let conn = self.0.lock().await;
+        conn.execute("UPDATE mods SET is_installed = 0, version_installed = NULL", [])?;
+        conn.execute_batch(&format!(
+            "UPDATE mods SET is_installed = 1, version_installed = (
+                SELECT version_installed FROM profile_mods
+                WHERE profile_mods.mod_id = mods.id AND profile_mods.profile_id = '{}'
+             )
+             WHERE id IN (
+                SELECT mod_id FROM profile_mods WHERE profile_id = '{}'
+             )",
+            profile_id.replace('\'', "''"),
+            profile_id.replace('\'', "''"),
+        ))?;
+        Ok(())
+    }
+
 }

@@ -8,6 +8,9 @@ use commands::{
     get_setting, set_setting, detect_mods_folder, pick_folder,
     scan_installed_mods, run_scan_installed,
     check_for_update, install_update, check_app_update_on_startup, get_mod_details,
+    get_profiles, create_profile, rename_profile, delete_profile,
+    set_default_profile, get_active_profile, switch_profile,
+    export_profile, import_profile,
 };
 use db::Database;
 use tauri::Manager;
@@ -18,6 +21,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
@@ -75,6 +79,15 @@ pub fn run() {
             check_for_update,
             install_update,
             get_mod_details,
+            get_profiles,
+            create_profile,
+            rename_profile,
+            delete_profile,
+            set_default_profile,
+            get_active_profile,
+            switch_profile,
+            export_profile,
+            import_profile,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -11,6 +11,7 @@ import { ModList } from "@/pages/ModList";
 import { Settings } from "@/pages/Settings";
 import { type SidebarFilters, SORT_OPTIONS } from "@/types/filters";
 import type { Mod } from "@/types/mod";
+import type { Profile } from "@/types/profile";
 
 function splitTags(category: string): string[] {
 	return category
@@ -57,6 +58,8 @@ export default function App() {
 		version: string;
 		notes?: string;
 	} | null>(null);
+	const [activeProfile, setActiveProfile] = useState<Profile | null>(null);
+
 	const [filters, setFilters] = useState<SidebarFilters>({
 		sortBy: "updated",
 		timeRange: "all-time",
@@ -75,6 +78,13 @@ export default function App() {
 		[toast],
 	);
 
+	const loadProfiles = useCallback(async () => {
+		try {
+			const profile = await invoke<Profile | null>("get_active_profile");
+			setActiveProfile(profile);
+		} catch (_) {}
+	}, []);
+
 	useEffect(() => {
 		let unlisten: (() => void) | undefined;
 
@@ -85,6 +95,8 @@ export default function App() {
 				});
 				if (lang) i18n.changeLanguage(lang);
 			} catch (_) {}
+
+			await loadProfiles();
 
 			try {
 				const result = await invoke<Mod[]>("get_mods");
@@ -123,6 +135,14 @@ export default function App() {
 				);
 			});
 
+			await listen("update-restart", () => {
+				showToast(t("toast.update_restart"), "success");
+			});
+
+			await listen("update-progress", () => {
+				// progress UI not yet implemented
+			});
+
 			await listen<number>("mods-updated-notification", (e) => {
 				const count = e.payload;
 				showToast(t("toast.mods_updated", { count }), "success");
@@ -133,7 +153,7 @@ export default function App() {
 		return () => {
 			unlisten?.();
 		};
-	}, [i18n, t, showToast]);
+	}, [i18n, t, showToast, loadProfiles]);
 
 	const prevSortRef = useRef(filters.sortBy);
 	const prevTimeRef = useRef(filters.timeRange);
@@ -322,6 +342,7 @@ export default function App() {
 					view={view}
 					onViewChange={setView}
 					appUpdate={appUpdate}
+					activeProfile={activeProfile}
 					onInstallUpdate={async () => {
 						setSyncing(true);
 						try {
@@ -358,7 +379,7 @@ export default function App() {
 						allMods={mods}
 					/>
 				) : (
-					<Settings />
+					<Settings activeProfile={activeProfile} onProfilesChanged={loadProfiles} />
 				)}
 			</div>
 		</div>

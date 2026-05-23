@@ -1,6 +1,7 @@
-import { ArrowLeft, Download, RefreshCw, Settings } from "lucide-react";
+import { ArrowLeft, Download, RefreshCw, Settings, User } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { Profile } from "@/types/profile";
 
 interface UpdateInfo {
 	version: string;
@@ -16,6 +17,7 @@ interface TopBarProps {
 	onViewChange: (v: "mods" | "settings" | "details") => void;
 	appUpdate?: UpdateInfo | null;
 	onInstallUpdate?: () => void;
+	activeProfile?: Profile | null;
 }
 
 const C = {
@@ -34,6 +36,7 @@ export function TopBar({
 	onViewChange,
 	appUpdate,
 	onInstallUpdate,
+	activeProfile,
 }: TopBarProps) {
 	const { t } = useTranslation();
 	return (
@@ -53,6 +56,36 @@ export function TopBar({
 			{loading && <div className="sync-progress-bar" />}
 
 			<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+				{activeProfile && (
+					<div
+						style={{
+							display: "flex",
+							alignItems: "center",
+							gap: "4px",
+							fontSize: "11px",
+							color: C.yellow,
+							fontWeight: 600,
+							backgroundColor: "rgba(229,202,95,0.1)",
+							padding: "2px 8px",
+							borderRadius: "4px",
+							border: `1px solid rgba(229,202,95,0.2)`,
+						}}
+					>
+						<User size={11} />
+						{activeProfile.name}
+						{activeProfile.is_default && (
+							<span
+								style={{
+									fontSize: "9px",
+									opacity: 0.7,
+									marginLeft: "2px",
+								}}
+							>
+								({t("profile.default")})
+							</span>
+						)}
+					</div>
+				)}
 				{appUpdate && (
 					<>
 						<span
