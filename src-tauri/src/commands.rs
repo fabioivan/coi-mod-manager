@@ -469,6 +469,38 @@ async fn download_zip_to_file(mod_page_url: &str, dest: &std::path::Path) -> Res
     Ok(())
 }
 
+fn copy_extra_files(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
+    if !src.exists() {
+        return Ok(());
+    }
+    let mut dirs = vec![src.to_path_buf()];
+    while let Some(dir) = dirs.pop() {
+        let mut entries = match std::fs::read_dir(&dir) {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        while let Some(entry) = entries.next().transpose()? {
+            let path = entry.path();
+            let relative = path.strip_prefix(src).unwrap();
+            let dst_path = dst.join(relative);
+            if path.is_dir() {
+                if !dst_path.exists() {
+                    let _ = std::fs::create_dir_all(&dst_path);
+                    copy_extra_files(&path, &dst_path)?;
+                } else {
+                    dirs.push(path);
+                }
+            } else if !dst_path.exists() {
+                if let Some(parent) = dst_path.parent() {
+                    let _ = std::fs::create_dir_all(parent);
+                }
+                std::fs::copy(&path, &dst_path)?;
+            }
+        }
+    }
+    Ok(())
+}
+
 async fn extract_to_pool(
     app: &tauri::AppHandle,
     mod_id: &str,
@@ -497,6 +529,20 @@ async fn extract_to_pool(
     archive.extract(&temp_dir).map_err(|e| e.to_string())?;
     std::mem::drop(archive);
     let _ = std::fs::remove_file(&zip_path);
+
+    // Copy user-generated files (settings, saves, etc.) from old versions
+    if let Ok(entries) = std::fs::read_dir(&pool_base) {
+        for entry in entries.flatten() {
+            let dir_name = entry.file_name();
+            let name = dir_name.to_string_lossy();
+            if name.starts_with(&format!("{}-", mod_id)) && entry.path().is_dir() {
+                let old_dir = entry.path();
+                if old_dir != version_dir {
+                    let _ = copy_extra_files(&old_dir, &temp_dir);
+                }
+            }
+        }
+    }
 
     let folder_name: String;
     if let Some((fname, fpath)) = find_manifest_dir(&temp_dir) {
