@@ -63,6 +63,7 @@ jobs:
             ## 🎮 CoI Mod Manager ${{ github.ref_name }}
 
             ### ✨ What's New
+            - **Auto-migration of mod settings**: when updating a mod, user-generated files (configs, saves) from the old version are automatically copied to the new one — no manual migration needed
             - **Profiles**: create, switch, export, and import isolated mod profiles
             - **Mod Pool**: mods are shared across profiles — no re-downloading
             - **Profile selection screen** on startup
@@ -73,7 +74,7 @@ jobs:
             - **Windows**: download `.msi` or `.exe` (NSIS)
             - **Linux**: download `.AppImage` or `.deb`
 
-            **Full Changelog**: https://github.com/fabioivan/coi-mod-manager/compare/v0.1.3...${{ github.ref_name }}
+            **Full Changelog**: https://github.com/fabioivan/coi-mod-manager/compare/v0.2.0...${{ github.ref_name }}
           releaseDraft: true
           prerelease: false
           includeUpdaterJson: true
