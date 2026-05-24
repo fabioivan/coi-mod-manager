@@ -28,6 +28,7 @@
     "language_desc": "Selecione o idioma do aplicativo.",
     "lang_pt-BR": "Português",
     "lang_en": "English",
+    "lang_zh-CN": "Chinese (Simplified)",
     "localization": "Localização dos Mods",
     "localization_desc": "Caminho da pasta onde o Captain of Industry armazena os mods instalados.",
     "detected_os": "Sistema detectado:",
