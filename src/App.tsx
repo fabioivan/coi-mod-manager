@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Sidebar } from "@/components/Sidebar";
+import { StatusBar } from "@/components/StatusBar";
 import { TopBar } from "@/components/TopBar";
 import { Toaster } from "@/components/ui/toaster";
 import { useToast } from "@/hooks/use-toast";
@@ -12,6 +13,11 @@ import { Settings } from "@/pages/Settings";
 import { type SidebarFilters, SORT_OPTIONS } from "@/types/filters";
 import type { Mod } from "@/types/mod";
 import type { Profile } from "@/types/profile";
+import {
+	compareVersions,
+	expandGameVersionRange,
+	versionInRange,
+} from "@/utils/version";
 
 function splitTags(category: string): string[] {
 	return category
@@ -64,6 +70,8 @@ export default function App() {
 		notes?: string;
 	} | null>(null);
 	const [activeProfile, setActiveProfile] = useState<Profile | null>(null);
+	const [savedGameVersion, setSavedGameVersion] = useState<string | null>(null);
+	const [changelogVersion, setChangelogVersion] = useState<string | null>(null);
 
 	const [filters, setFilters] = useState<SidebarFilters>({
 		sortBy: "updated",
@@ -77,7 +85,12 @@ export default function App() {
 		(message: string, type: "info" | "error" | "success" = "info") => {
 			toast({
 				description: message,
-				variant: type === "error" ? "destructive" : type === "success" ? "success" : "default",
+				variant:
+					type === "error"
+						? "destructive"
+						: type === "success"
+							? "success"
+							: "default",
 				duration: type === "error" ? undefined : 5000,
 			});
 		},
@@ -100,6 +113,22 @@ export default function App() {
 					key: "language",
 				});
 				if (lang) i18n.changeLanguage(lang);
+			} catch (_) {}
+
+			try {
+				const gv = await invoke<string | null>("get_setting", {
+					key: "game_version",
+				});
+				if (gv) {
+					setSavedGameVersion(gv);
+				}
+			} catch (_) {}
+
+			try {
+				const cv = await invoke<string | null>("detect_game_version");
+				if (cv) {
+					setChangelogVersion(cv);
+				}
 			} catch (_) {}
 
 			await loadProfiles();
@@ -229,10 +258,32 @@ export default function App() {
 		}
 	}
 
-	async function handleInstall(mod: Mod, version?: string, versionDownloadUrl?: string) {
+	async function handleInstall(
+		mod: Mod,
+		version?: string,
+		versionDownloadUrl?: string,
+	) {
+		const realVersion = changelogVersion ?? savedGameVersion;
+		if (
+			realVersion &&
+			mod.game_version &&
+			!versionInRange(realVersion, mod.game_version)
+		) {
+			const msg = t("install.version_warning", {
+				mod: mod.name,
+				version: realVersion,
+				modVersion: mod.game_version,
+			});
+			if (!window.confirm(msg)) return;
+		}
+
 		setInstallingIds((prev) => new Set([...prev, mod.id]));
 		try {
-			await invoke("install_mod", { modId: mod.id, version: version ?? null, versionDownloadUrl: versionDownloadUrl ?? null });
+			await invoke("install_mod", {
+				modId: mod.id,
+				version: version ?? null,
+				versionDownloadUrl: versionDownloadUrl ?? null,
+			});
 			await loadMods();
 		} catch (e) {
 			console.error("Failed to install mod:", e);
@@ -286,12 +337,20 @@ export default function App() {
 	const gameVersions = useMemo(() => {
 		const set = new Set<string>();
 		mods.forEach((m) => {
-			if (m.game_version) set.add(m.game_version);
+			if (m.game_version) {
+				expandGameVersionRange(m.game_version).forEach((v) => set.add(v));
+			}
 		});
-		return [...set].sort((a, b) =>
-			b.localeCompare(a, undefined, { numeric: true }),
-		);
+		return [...set].sort((a, b) => compareVersions(b, a));
 	}, [mods]);
+
+	const gameVersionSet = useMemo(() => new Set(gameVersions), [gameVersions]);
+
+	useEffect(() => {
+		if (savedGameVersion && !filters.gameVersion && gameVersionSet.size > 0) {
+			setFilters((prev) => ({ ...prev, gameVersion: savedGameVersion }));
+		}
+	}, [savedGameVersion, gameVersionSet]);
 
 	const outdatedCount = useMemo(
 		() =>
@@ -313,81 +372,97 @@ export default function App() {
 		return arr;
 	}, [mods, filters.sortBy]);
 
+	const installedCount = useMemo(
+		() => mods.filter((m) => m.is_installed).length,
+		[mods],
+	);
+
 	return (
 		<div
 			style={{
 				display: "flex",
+				flexDirection: "column",
 				height: "100vh",
 				backgroundColor: "#2f2f2f",
 				color: "#f8f8f8",
 				overflow: "hidden",
 			}}
 		>
-			<Toaster />
-			<Sidebar
-				tags={tags}
-				counts={tagCounts}
-				total={mods.length}
-				gameVersions={gameVersions}
-				filters={filters}
-				onFiltersChange={setFilters}
-			/>
-			<div
-				style={{
-					display: "flex",
-					flexDirection: "column",
-					flex: 1,
-					minWidth: 0,
-				}}
-			>
-				<TopBar
-					outdatedCount={outdatedCount}
-					onRefresh={handleRefresh}
-					onUpdateAll={handleUpdateAll}
-					loading={syncing}
-					view={view}
-					onViewChange={setView}
-					appUpdate={appUpdate}
-					activeProfile={activeProfile}
-					onInstallUpdate={async () => {
-						setSyncing(true);
-						try {
-							await invoke("install_update");
-						} catch (e) {
-							console.error("Failed to install update:", e);
-							showToast(translateError(String(e), t), "error");
-							setSyncing(false);
-						}
-					}}
+			<div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+				<Toaster />
+				<Sidebar
+					tags={tags}
+					counts={tagCounts}
+					total={mods.length}
+					gameVersions={gameVersions}
+					filters={filters}
+					onFiltersChange={setFilters}
+					detectedGameVersion={savedGameVersion}
 				/>
-				{view === "mods" ? (
-					<ModList
-						mods={sortedMods}
-						filters={filters}
-						onUpdate={handleUpdate}
-						onInstall={handleInstall}
-						onUninstall={handleUninstall}
-						onSelectMod={(id) => {
-							setSelectedModId(id);
-							setView("details");
+				<div
+					style={{
+						display: "flex",
+						flexDirection: "column",
+						flex: 1,
+						minWidth: 0,
+					}}
+				>
+					<TopBar
+						outdatedCount={outdatedCount}
+						onRefresh={handleRefresh}
+						onUpdateAll={handleUpdateAll}
+						loading={syncing}
+						view={view}
+						onViewChange={setView}
+						appUpdate={appUpdate}
+						activeProfile={activeProfile}
+						onInstallUpdate={async () => {
+							setSyncing(true);
+							try {
+								await invoke("install_update");
+							} catch (e) {
+								console.error("Failed to install update:", e);
+								showToast(translateError(String(e), t), "error");
+								setSyncing(false);
+							}
 						}}
-						syncing={syncing}
-						installingIds={installingIds}
 					/>
-				) : view === "details" && selectedModId ? (
-					<ModDetail
-						modId={selectedModId}
-						onBack={() => setView("mods")}
-						onUpdate={handleUpdate}
-						onInstall={handleInstall}
-						onUninstall={handleUninstall}
-						installingIds={installingIds}
-						allMods={mods}
-					/>
-				) : (
-					<Settings activeProfile={activeProfile} onProfilesChanged={loadProfiles} />
-				)}
+					{view === "mods" ? (
+						<ModList
+							mods={sortedMods}
+							filters={filters}
+							onUpdate={handleUpdate}
+							onInstall={handleInstall}
+							onUninstall={handleUninstall}
+							onSelectMod={(id) => {
+								setSelectedModId(id);
+								setView("details");
+							}}
+							syncing={syncing}
+							installingIds={installingIds}
+						/>
+					) : view === "details" && selectedModId ? (
+						<ModDetail
+							modId={selectedModId}
+							onBack={() => setView("mods")}
+							onUpdate={handleUpdate}
+							onInstall={handleInstall}
+							onUninstall={handleUninstall}
+							installingIds={installingIds}
+							allMods={mods}
+						/>
+					) : (
+						<Settings
+							activeProfile={activeProfile}
+							onProfilesChanged={loadProfiles}
+						/>
+					)}
+				</div>
 			</div>
+			<StatusBar
+				installedCount={installedCount}
+				gameVersion={changelogVersion ?? savedGameVersion}
+			/>
 		</div>
 	);
 }

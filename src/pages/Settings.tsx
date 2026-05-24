@@ -1,10 +1,21 @@
 import { invoke } from "@tauri-apps/api/core";
-import { FolderOpen, Globe, ScanSearch, Search, User, Plus, Check, Download, Upload, Trash2 } from "lucide-react";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import {
+	Check,
+	Download,
+	FolderOpen,
+	Globe,
+	Plus,
+	ScanSearch,
+	Search,
+	Trash2,
+	Upload,
+	User,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { Profile } from "@/types/profile";
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import type { Profile } from "@/types/profile";
 
 const C = {
 	darkerGrey: "#292929",
@@ -40,6 +51,10 @@ export function Settings({ activeProfile, onProfilesChanged }: SettingsProps) {
 	const [os, setOs] = useState<string>("");
 	const [language, setLanguage] = useState("pt-BR");
 	const [autoUpdateEnabled, setAutoUpdateEnabled] = useState(true);
+	const [gameVersion, setGameVersion] = useState("");
+	const [gameVersionSaved, setGameVersionSaved] = useState(false);
+	const [detectingVersion, setDetectingVersion] = useState(false);
+	const [gameVersionMsg, setGameVersionMsg] = useState<string | null>(null);
 	const [profiles, setProfiles] = useState<Profile[]>([]);
 	const [importing, setImporting] = useState(false);
 
@@ -57,6 +72,9 @@ export function Settings({ activeProfile, onProfilesChanged }: SettingsProps) {
 	useEffect(() => {
 		invoke<string | null>("get_setting", { key: "mods_folder" }).then((v) => {
 			if (v) setModsFolder(v);
+		});
+		invoke<string | null>("get_setting", { key: "game_version" }).then((v) => {
+			if (v) setGameVersion(v);
 		});
 		invoke<string | null>("get_setting", { key: "language" }).then((v) => {
 			if (v) {
@@ -135,12 +153,39 @@ export function Settings({ activeProfile, onProfilesChanged }: SettingsProps) {
 		});
 	}
 
+	async function handleDetectGameVersion() {
+		setDetectingVersion(true);
+		setGameVersionMsg(null);
+		try {
+			const result = await invoke<string | null>("detect_game_version");
+			if (result) {
+				setGameVersion(result);
+				setGameVersionMsg(t("settings.version_found"));
+			} else {
+				setGameVersionMsg(t("settings.version_not_found"));
+			}
+		} catch (_) {
+			setGameVersionMsg(t("settings.version_not_found"));
+		} finally {
+			setDetectingVersion(false);
+		}
+	}
+
+	async function handleSaveGameVersion() {
+		await invoke("set_setting", { key: "game_version", value: gameVersion });
+		setGameVersionSaved(true);
+		setTimeout(() => setGameVersionSaved(false), 2500);
+	}
+
 	async function handleImport() {
 		const code = window.prompt(t("profile.import_prompt"));
 		if (!code?.trim()) return;
 		setImporting(true);
 		try {
-			await invoke<{ profile: Profile; mods_installed: number }>("import_profile", { data: code.trim() });
+			await invoke<{ profile: Profile; mods_installed: number }>(
+				"import_profile",
+				{ data: code.trim() },
+			);
 			await loadProfiles();
 			if (onProfilesChanged) onProfilesChanged();
 		} catch (e) {
@@ -300,6 +345,103 @@ export function Settings({ activeProfile, onProfilesChanged }: SettingsProps) {
 				</label>
 			</div>
 
+			{/* Game Version section */}
+			<div
+				style={{
+					backgroundColor: C.darkerGrey,
+					border: `1px solid ${C.borderGrey}`,
+					borderRadius: "6px",
+					padding: "20px",
+					maxWidth: "600px",
+					marginBottom: "16px",
+				}}
+			>
+				<h3
+					style={{
+						fontSize: "12px",
+						fontWeight: 700,
+						color: C.yellow,
+						textTransform: "uppercase",
+						letterSpacing: "1px",
+						marginBottom: "6px",
+					}}
+				>
+					{t("settings.game_version")}
+				</h3>
+				<p
+					style={{
+						fontSize: "12px",
+						color: C.metaGrey,
+						marginBottom: "16px",
+						lineHeight: "1.5",
+					}}
+				>
+					{t("settings.game_version_desc")}
+				</p>
+
+				<div style={{ display: "flex", gap: "6px", marginBottom: "10px" }}>
+					<input
+						type="text"
+						value={gameVersion}
+						onChange={(e) => {
+							setGameVersion(e.target.value);
+							setGameVersionSaved(false);
+							setGameVersionMsg(null);
+						}}
+						placeholder={t("settings.game_version_placeholder")}
+						style={{
+							flex: 1,
+							padding: "6px 10px",
+							fontSize: "12px",
+							backgroundColor: C.grey,
+							border: `1px solid ${C.borderGrey}`,
+							borderRadius: "4px",
+							color: C.white,
+							outline: "none",
+						}}
+					/>
+					<Button
+						onClick={handleDetectGameVersion}
+						disabled={detectingVersion}
+						variant="outline"
+						size="sm"
+						style={{ padding: "6px 14px", height: "auto" }}
+						className="border-[#414141] text-[#c6c6c6] hover:bg-[#414141] text-[11px] font-semibold uppercase"
+					>
+						<Search size={11} />
+						{detectingVersion ? t("common.detecting") : t("settings.detect")}
+					</Button>
+				</div>
+
+				<div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+					<Button
+						onClick={handleSaveGameVersion}
+						disabled={!gameVersion}
+						size="sm"
+						style={{ padding: "6px 14px", height: "auto" }}
+						className="text-[11px] font-bold uppercase"
+					>
+						{gameVersionSaved ? t("common.saved") : t("common.save")}
+					</Button>
+				</div>
+
+				{gameVersionMsg && (
+					<p
+						style={{
+							marginTop: "10px",
+							fontSize: "11px",
+							color:
+								gameVersionMsg.includes("encontrado") ||
+								gameVersionMsg.includes("found")
+									? "#81c784"
+									: "#e57373",
+						}}
+					>
+						{gameVersionMsg}
+					</p>
+				)}
+			</div>
+
 			{/* Profile section */}
 			<div
 				style={{
@@ -335,11 +477,26 @@ export function Settings({ activeProfile, onProfilesChanged }: SettingsProps) {
 				</p>
 
 				{profiles.length === 0 ? (
-					<p style={{ fontSize: "12px", color: C.metaGrey, marginBottom: "12px" }}>
+					<p
+						style={{
+							fontSize: "12px",
+							color: C.metaGrey,
+							marginBottom: "12px",
+						}}
+					>
 						{t("profile.select_desc")}
 					</p>
 				) : (
-					<div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "16px", maxHeight: "210px", overflowY: "auto" }}>
+					<div
+						style={{
+							display: "flex",
+							flexDirection: "column",
+							gap: "8px",
+							marginBottom: "16px",
+							maxHeight: "210px",
+							overflowY: "auto",
+						}}
+					>
 						{profiles.map((p) => {
 							const isActive = activeProfile?.id === p.id;
 							return (
@@ -355,7 +512,13 @@ export function Settings({ activeProfile, onProfilesChanged }: SettingsProps) {
 										padding: "12px 14px",
 									}}
 								>
-									<User size={16} style={{ color: isActive ? C.yellow : C.metaGrey, flexShrink: 0 }} />
+									<User
+										size={16}
+										style={{
+											color: isActive ? C.yellow : C.metaGrey,
+											flexShrink: 0,
+										}}
+									/>
 									<div style={{ flex: 1, minWidth: 0 }}>
 										<div
 											style={{
@@ -391,7 +554,13 @@ export function Settings({ activeProfile, onProfilesChanged }: SettingsProps) {
 												</span>
 											)}
 										</div>
-										<div style={{ fontSize: "11px", color: C.metaGrey, marginTop: "2px" }}>
+										<div
+											style={{
+												fontSize: "11px",
+												color: C.metaGrey,
+												marginTop: "2px",
+											}}
+										>
 											{t("profile.mod_count", { count: p.mod_count })}
 										</div>
 									</div>
@@ -409,7 +578,11 @@ export function Settings({ activeProfile, onProfilesChanged }: SettingsProps) {
 												}}
 												size="sm"
 												variant="outline"
-												style={{ padding: "4px 10px", height: "auto", fontSize: "10px" }}
+												style={{
+													padding: "4px 10px",
+													height: "auto",
+													fontSize: "10px",
+												}}
 												className="border-[#414141] text-[#c6c6c6] hover:bg-[#414141] font-semibold uppercase"
 											>
 												{t("profile.select")}
@@ -419,7 +592,9 @@ export function Settings({ activeProfile, onProfilesChanged }: SettingsProps) {
 											<Button
 												onClick={async () => {
 													try {
-														await invoke("set_default_profile", { profileId: p.id });
+														await invoke("set_default_profile", {
+															profileId: p.id,
+														});
 														await loadProfiles();
 														if (onProfilesChanged) onProfilesChanged();
 													} catch (e) {
@@ -428,7 +603,11 @@ export function Settings({ activeProfile, onProfilesChanged }: SettingsProps) {
 												}}
 												size="sm"
 												variant="outline"
-												style={{ padding: "4px 8px", height: "auto", fontSize: "10px" }}
+												style={{
+													padding: "4px 8px",
+													height: "auto",
+													fontSize: "10px",
+												}}
 												className="border-[#414141] text-[#c6c6c6] hover:bg-[#414141] font-semibold uppercase"
 												title={t("profile.set_default")}
 											>
@@ -438,7 +617,9 @@ export function Settings({ activeProfile, onProfilesChanged }: SettingsProps) {
 										<Button
 											onClick={async () => {
 												try {
-													const code = await invoke<string>("export_profile", { profileId: p.id });
+													const code = await invoke<string>("export_profile", {
+														profileId: p.id,
+													});
 													await writeText(code);
 													alert(t("profile.export_copied"));
 												} catch (e) {
@@ -447,7 +628,11 @@ export function Settings({ activeProfile, onProfilesChanged }: SettingsProps) {
 											}}
 											size="sm"
 											variant="outline"
-											style={{ padding: "4px 8px", height: "auto", fontSize: "10px" }}
+											style={{
+												padding: "4px 8px",
+												height: "auto",
+												fontSize: "10px",
+											}}
 											className="border-[#414141] text-[#c6c6c6] hover:bg-[#414141] font-semibold uppercase"
 											title={t("profile.export_btn")}
 										>
@@ -456,7 +641,8 @@ export function Settings({ activeProfile, onProfilesChanged }: SettingsProps) {
 										{!p.is_default && !isActive && (
 											<Button
 												onClick={async () => {
-													if (!window.confirm(t("profile.delete_confirm"))) return;
+													if (!window.confirm(t("profile.delete_confirm")))
+														return;
 													try {
 														await invoke("delete_profile", { profileId: p.id });
 														await loadProfiles();
@@ -467,7 +653,11 @@ export function Settings({ activeProfile, onProfilesChanged }: SettingsProps) {
 												}}
 												size="sm"
 												variant="outline"
-												style={{ padding: "4px 8px", height: "auto", fontSize: "10px" }}
+												style={{
+													padding: "4px 8px",
+													height: "auto",
+													fontSize: "10px",
+												}}
 												className="border-[#414141] text-[#e57373] hover:bg-[#414141] font-semibold uppercase"
 												title={t("profile.delete")}
 											>
@@ -481,7 +671,14 @@ export function Settings({ activeProfile, onProfilesChanged }: SettingsProps) {
 					</div>
 				)}
 
-				<div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+				<div
+					style={{
+						display: "flex",
+						gap: "8px",
+						flexWrap: "wrap",
+						alignItems: "center",
+					}}
+				>
 					<Button
 						onClick={async () => {
 							const name = window.prompt(t("profile.name_placeholder"));

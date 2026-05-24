@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 jobs:
   release:
@@ -14,9 +14,9 @@ jobs:
       matrix:
         include:
           - platform: ubuntu-22.04
-            args: ''
+            args: ""
           - platform: windows-latest
-            args: ''
+            args: ""
 
     runs-on: ${{ matrix.platform }}
 
@@ -35,7 +35,7 @@ jobs:
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: './src-tauri -> target'
+          workspaces: "./src-tauri -> target"
 
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
@@ -58,7 +58,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: 'CoI Mod Manager ${{ github.ref_name }}'
+          releaseName: "CoI Mod Manager ${{ github.ref_name }}"
           releaseBody: |
             ## 🎮 CoI Mod Manager ${{ github.ref_name }}
 
@@ -70,11 +70,6 @@ jobs:
             - **Screenshots** in README
             - Memory and stability fixes
 
-            ### 🔧 Installation
-            - **Windows**: download `.msi` or `.exe` (NSIS)
-            - **Linux**: download `.AppImage` or `.deb`
-
-            **Full Changelog**: https://github.com/fabioivan/coi-mod-manager/compare/v0.2.0...${{ github.ref_name }}
           releaseDraft: true
           prerelease: false
           includeUpdaterJson: true

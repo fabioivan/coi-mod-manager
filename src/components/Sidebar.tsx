@@ -13,6 +13,7 @@ interface SidebarProps {
 	gameVersions: string[];
 	filters: SidebarFilters;
 	onFiltersChange: (f: SidebarFilters) => void;
+	detectedGameVersion?: string | null;
 }
 
 const C = {
@@ -157,6 +158,7 @@ export function Sidebar({
 	gameVersions,
 	filters,
 	onFiltersChange,
+	detectedGameVersion,
 }: SidebarProps) {
 	const { t } = useTranslation();
 
@@ -180,6 +182,21 @@ export function Sidebar({
 	};
 
 	function update(patch: Partial<SidebarFilters>) {
+		if (
+			"gameVersion" in patch &&
+			patch.gameVersion !== undefined &&
+			patch.gameVersion !== "" &&
+			detectedGameVersion &&
+			patch.gameVersion !== detectedGameVersion
+		) {
+			const confirmed = window.confirm(
+				t("sidebar.game_version_warning", {
+					detected: detectedGameVersion,
+					selected: patch.gameVersion,
+				}),
+			);
+			if (!confirmed) return;
+		}
 		onFiltersChange({ ...filters, ...patch });
 	}
 
@@ -353,6 +370,19 @@ export function Sidebar({
 								</option>
 							))}
 						</select>
+						{detectedGameVersion && (
+							<p
+								style={{
+									marginTop: "6px",
+									fontSize: "10px",
+									color: C.metaGrey,
+								}}
+							>
+								{t("sidebar.detected_version", {
+									version: detectedGameVersion,
+								})}
+							</p>
+						)}
 					</div>
 				)}
 			</div>

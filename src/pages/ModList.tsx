@@ -5,6 +5,7 @@ import { ModCard } from "@/components/ModCard";
 import { Button } from "@/components/ui/button";
 import type { SidebarFilters } from "@/types/filters";
 import { getModStatus, type Mod } from "@/types/mod";
+import { versionInRange } from "@/utils/version";
 
 interface ModListProps {
 	mods: Mod[];
@@ -70,7 +71,10 @@ export function ModList({
 			)
 				return false;
 			// Versão do jogo (sidebar)
-			if (filters.gameVersion && mod.game_version !== filters.gameVersion)
+			if (
+				filters.gameVersion &&
+				!versionInRange(filters.gameVersion, mod.game_version)
+			)
 				return false;
 			// Busca por nome
 			if (search && !mod.name.toLowerCase().includes(search.toLowerCase()))

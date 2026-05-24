@@ -176,7 +176,7 @@ pub async fn switch_profile(
         }
     }
 
-    // Create symlinks for target profile
+    // Create symlinks (or copies) for target profile
     let target_mods = db.get_profile_mods(&profile_id).await.map_err(|e| e.to_string())?;
     for pm in &target_mods {
         if let Some(ref pool_path) = pm.pool_path {
@@ -185,7 +185,7 @@ pub async fn switch_profile(
                 if let Some(ref fname) = pm.folder_name {
                     let link = std::path::Path::new(&folder).join(fname);
                     let _ = remove_any(&link);
-                    create_symlink(pool_dir, &link)?;
+                    create_symlink_or_copy(pool_dir, &link)?;
                 }
             }
         }
@@ -291,7 +291,7 @@ pub async fn import_profile(
 
         let link = std::path::Path::new(&folder).join(&folder_name);
         remove_symlink(&link)?;
-        create_symlink(&pool_dir, &link)?;
+        create_symlink_or_copy(&pool_dir, &link)?;
 
         db.add_profile_mod(
             &profile_id, &em.id, &em.version,
@@ -312,7 +312,21 @@ pub async fn import_profile(
 }
 
 fn remove_any(path: &std::path::Path) -> std::io::Result<()> {
-    if path.is_symlink() || path.is_file() {
+    if path.is_symlink() {
+        // On Windows, directory symlinks must be removed with remove_dir, not remove_file.
+        #[cfg(target_os = "windows")]
+        {
+            if path.is_dir() {
+                std::fs::remove_dir(path)
+            } else {
+                std::fs::remove_file(path)
+            }
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            std::fs::remove_file(path)
+        }
+    } else if path.is_file() {
         std::fs::remove_file(path)
     } else if path.is_dir() {
         std::fs::remove_dir_all(path)
@@ -321,19 +335,61 @@ fn remove_any(path: &std::path::Path) -> std::io::Result<()> {
     }
 }
 
-fn create_symlink(target: &std::path::Path, link: &std::path::Path) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    {
-        std::os::windows::fs::symlink_dir(target, link).map_err(|e| e.to_string())
+/// Recursively copy a directory tree from `src` to `dst`.
+fn copy_dir_all(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(dst)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        if ty.is_dir() {
+            copy_dir_all(&entry.path(), &dst.join(entry.file_name()))?;
+        } else {
+            std::fs::copy(entry.path(), dst.join(entry.file_name()))?;
+        }
     }
-    #[cfg(not(target_os = "windows"))]
-    {
-        std::os::unix::fs::symlink(target, link).map_err(|e| e.to_string())
+    Ok(())
+}
+
+/// Try to create a directory symlink from `link` → `target`.
+/// If symlink creation fails (e.g. Windows without Developer Mode / admin rights),
+/// fall back to copying the directory tree so regular users are not blocked.
+fn create_symlink_or_copy(target: &std::path::Path, link: &std::path::Path) -> Result<(), String> {
+    let symlink_result = {
+        #[cfg(target_os = "windows")]
+        { std::os::windows::fs::symlink_dir(target, link) }
+        #[cfg(not(target_os = "windows"))]
+        { std::os::unix::fs::symlink(target, link) }
+    };
+    match symlink_result {
+        Ok(()) => Ok(()),
+        Err(_) => {
+            // Symlink failed (most likely Windows without admin/Developer Mode).
+            // Fall back to a full directory copy so the mod still works.
+            copy_dir_all(target, link)
+                .map_err(|e| format!("Failed to copy mod files: {}", e))
+        }
     }
 }
 
 fn remove_symlink(link: &std::path::Path) -> Result<(), String> {
-    if link.is_symlink() || link.exists() {
+    if link.is_symlink() {
+        // On Windows, directory symlinks require remove_dir, not remove_file.
+        #[cfg(target_os = "windows")]
+        {
+            if link.is_dir() {
+                std::fs::remove_dir(link).map_err(|e| e.to_string())
+            } else {
+                std::fs::remove_file(link).map_err(|e| e.to_string())
+            }
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            std::fs::remove_file(link).map_err(|e| e.to_string())
+        }
+    } else if link.is_dir() {
+        // Was installed via copy fallback — remove the whole directory.
+        std::fs::remove_dir_all(link).map_err(|e| e.to_string())
+    } else if link.exists() {
         std::fs::remove_file(link).map_err(|e| e.to_string())
     } else {
         Ok(())
@@ -401,6 +457,111 @@ pub async fn pick_folder(app: tauri::AppHandle) -> Result<Option<String>, String
     });
     let result = rx.await.map_err(|e| e.to_string())?;
     Ok(result.map(|p| p.to_string()))
+}
+
+fn find_game_install_dir() -> Option<String> {
+	#[cfg(target_os = "windows")]
+	{
+		let candidates = [
+			r"C:\Program Files (x86)\Steam\steamapps\common\Captain of Industry",
+			r"C:\Program Files\Steam\steamapps\common\Captain of Industry",
+		];
+		let found = candidates.into_iter().find(|p| std::path::Path::new(p).exists());
+		if found.is_some() {
+			return found;
+		}
+		if let Ok(steam_path) = std::env::var("STEAM_PATH") {
+			let path = std::path::PathBuf::from(steam_path)
+				.join("steamapps/common/Captain of Industry");
+			if path.exists() {
+				return Some(path.to_string_lossy().into_owned());
+			}
+		}
+		None
+	}
+
+	#[cfg(target_os = "linux")]
+	{
+		let home = std::env::var("HOME").ok()?;
+		let suffix = "steamapps/common/Captain of Industry";
+
+		let default_steam_dirs = [
+			format!("{}/.local/share/Steam", home),
+			format!("{}/.steam/steam", home),
+			format!("{}/snap/steam/common/.local/share/Steam", home),
+			format!("{}/.var/app/com.valvesoftware.Steam/.local/share/Steam", home),
+		];
+
+		for steam_dir in &default_steam_dirs {
+			let path = format!("{}/{}", steam_dir, suffix);
+			if std::path::Path::new(&path).exists() {
+				return Some(path);
+			}
+		}
+
+		for steam_dir in &default_steam_dirs {
+			let vdf_path = std::path::PathBuf::from(steam_dir)
+				.join("steamapps/libraryfolders.vdf");
+			if !vdf_path.exists() {
+				continue;
+			}
+			if let Ok(content) = std::fs::read_to_string(&vdf_path) {
+				for line in content.lines() {
+					if let Some(val) = line.rsplit('"').nth(1) {
+						let val = val.trim();
+						if val.starts_with('/') || (val.len() > 1 && val.as_bytes()[1] == b':') {
+							let candidate = format!("{}/{}", val, suffix);
+							if std::path::Path::new(&candidate).exists() {
+								return Some(candidate);
+							}
+						}
+					}
+				}
+			}
+		}
+
+		None
+	}
+
+	#[cfg(not(any(target_os = "windows", target_os = "linux")))]
+	{
+		None
+	}
+}
+
+fn read_version_from_changelog(install_dir: &std::path::Path) -> Option<String> {
+	let changelog = install_dir.join("changelog.txt");
+	if !changelog.exists() {
+		return None;
+	}
+	let content = std::fs::read_to_string(changelog).ok()?;
+	let first_line = content.lines().next()?.trim().to_string();
+	if first_line.is_empty() {
+		return None;
+	}
+	let version = first_line
+		.split('|')
+		.next()?
+		.trim()
+		.trim_start_matches('v')
+		.trim_start_matches('V')
+		.trim_start_matches("ersion ")
+		.trim()
+		.to_string();
+	if version.is_empty() { None } else { Some(version) }
+}
+
+#[tauri::command]
+pub async fn detect_game_version() -> Result<Option<String>, String> {
+	let dir = match find_game_install_dir() {
+		Some(d) => d,
+		None => return Ok(None),
+	};
+	let path = std::path::Path::new(&dir);
+	if let Some(version) = read_version_from_changelog(path) {
+		return Ok(Some(version));
+	}
+	Ok(None)
 }
 
 fn find_mods_folder() -> Option<String> {
@@ -659,7 +820,7 @@ pub async fn update_all_mods(
 
         let link = std::path::Path::new(&folder).join(&folder_name);
         remove_symlink(&link)?;
-        create_symlink(&pool_dir, &link)?;
+        create_symlink_or_copy(&pool_dir, &link)?;
 
         db.add_profile_mod(
             &profile_id, mod_id, &mod_entry.version_available,
@@ -706,7 +867,7 @@ pub async fn install_mod(
 
     let link = std::path::Path::new(&folder).join(&folder_name);
     remove_symlink(&link)?;
-    create_symlink(&pool_dir, &link)?;
+    create_symlink_or_copy(&pool_dir, &link)?;
 
     db.add_profile_mod(
         &profile_id, &mod_id, target_version,
@@ -749,7 +910,7 @@ pub async fn update_mod(
 
     let link = std::path::Path::new(&folder).join(&folder_name);
     remove_symlink(&link)?;
-    create_symlink(&pool_dir, &link)?;
+    create_symlink_or_copy(&pool_dir, &link)?;
 
     db.add_profile_mod(
         &profile_id, &mod_id, target_version,
@@ -792,6 +953,38 @@ pub async fn uninstall_mod(
 // ─── Scan ───
 
 #[tauri::command]
+pub async fn get_mods_folder_size(
+    db: State<'_, Database>,
+) -> Result<Option<u64>, String> {
+    let folder = db.get_setting("mods_folder").await
+        .map_err(|e| e.to_string())?;
+    let folder = match folder {
+        Some(f) => f,
+        None => return Ok(None),
+    };
+    let path = std::path::Path::new(&folder);
+    if !path.exists() {
+        return Ok(None);
+    }
+    let mut total = 0u64;
+    walk_dir(path, &mut total).map_err(|e| e.to_string())?;
+    Ok(Some(total))
+}
+
+fn walk_dir(dir: &std::path::Path, total: &mut u64) -> std::io::Result<()> {
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            walk_dir(&path, total)?;
+        } else {
+            *total += entry.metadata()?.len();
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn scan_installed_mods(
     app: tauri::AppHandle,
     db: State<'_, Database>,
@@ -817,12 +1010,13 @@ pub async fn scan_installed_mods(
 
         let folder_name = entry.file_name().to_string_lossy().to_lowercase();
 
-        let manifest_path = if path.is_symlink() {
-            let target = std::fs::read_link(&path).map_err(|e| e.to_string())?;
-            target.join("manifest.json")
-        } else {
-            path.join("manifest.json")
-        };
+        // For symlinks, follow the link to find the real path; otherwise use the
+        // directory itself. We use std::fs::canonicalize so both cases work on
+        // Windows (where read_link may return a device-namespace path) and on
+        // systems where mods were installed via the copy fallback (plain dirs).
+        let manifest_path = std::fs::canonicalize(&path)
+            .unwrap_or_else(|_| path.clone())
+            .join("manifest.json");
 
         if !manifest_path.exists() { continue; }
         let Ok(manifest_str) = std::fs::read_to_string(&manifest_path) else { continue; };
@@ -888,14 +1082,11 @@ pub async fn run_scan_installed(app: &tauri::AppHandle) {
         if !path.is_dir() && !path.is_symlink() { continue; }
         let folder_name_lower = entry.file_name().to_string_lossy().to_lowercase();
 
-        let manifest_path = if path.is_symlink() {
-            match std::fs::read_link(&path) {
-                Ok(t) => t.join("manifest.json"),
-                Err(_) => continue,
-            }
-        } else {
-            path.join("manifest.json")
-        };
+        // Resolve the real directory (handles both symlinks and plain dirs,
+        // including Windows device-namespace paths from read_link).
+        let manifest_path = std::fs::canonicalize(&path)
+            .unwrap_or_else(|_| path.clone())
+            .join("manifest.json");
 
         if !manifest_path.exists() { continue; }
         let Ok(manifest_str) = std::fs::read_to_string(&manifest_path) else { continue; };
