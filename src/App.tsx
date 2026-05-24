@@ -77,7 +77,8 @@ export default function App() {
 		(message: string, type: "info" | "error" | "success" = "info") => {
 			toast({
 				description: message,
-				variant: type === "error" ? "destructive" : "default",
+				variant: type === "error" ? "destructive" : type === "success" ? "success" : "default",
+				duration: type === "error" ? undefined : 5000,
 			});
 		},
 		[toast],
