@@ -10,7 +10,7 @@ interface ModListProps {
 	mods: Mod[];
 	filters: SidebarFilters;
 	onUpdate: (mod: Mod) => void;
-	onInstall: (mod: Mod) => void;
+	onInstall: (mod: Mod, version?: string, versionDownloadUrl?: string) => void;
 	onUninstall: (mod: Mod) => void;
 	onSelectMod?: (id: string) => void;
 	syncing?: boolean;

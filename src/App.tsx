@@ -229,10 +229,10 @@ export default function App() {
 		}
 	}
 
-	async function handleInstall(mod: Mod) {
+	async function handleInstall(mod: Mod, version?: string, versionDownloadUrl?: string) {
 		setInstallingIds((prev) => new Set([...prev, mod.id]));
 		try {
-			await invoke("install_mod", { modId: mod.id });
+			await invoke("install_mod", { modId: mod.id, version: version ?? null, versionDownloadUrl: versionDownloadUrl ?? null });
 			await loadMods();
 		} catch (e) {
 			console.error("Failed to install mod:", e);

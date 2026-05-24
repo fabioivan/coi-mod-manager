@@ -19,7 +19,7 @@ import {
 interface ModCardProps {
 	mod: Mod;
 	onUpdate: (mod: Mod) => void;
-	onInstall: (mod: Mod) => void;
+	onInstall: (mod: Mod, version?: string, versionDownloadUrl?: string) => void;
 	onUninstall: (mod: Mod) => void;
 	installing?: boolean;
 	showUninstall?: boolean;

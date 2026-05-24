@@ -286,7 +286,7 @@ pub async fn import_profile(
             .await.map_err(|e| e.to_string())?;
 
         let (folder_name, pool_dir) = extract_to_pool(
-            &app, &em.id, &em.name, &em.version, &em.url,
+            &app, &em.id, &em.name, &em.version, &em.url, None,
         ).await?;
 
         let link = std::path::Path::new(&folder).join(&folder_name);
@@ -496,12 +496,11 @@ fn find_manifest_dir(dir: &std::path::Path) -> Option<(String, std::path::PathBu
     None
 }
 
-async fn download_zip_to_file(mod_page_url: &str, dest: &std::path::Path) -> Result<(), String> {
+async fn download_zip_to_file(url: &str, dest: &std::path::Path) -> Result<(), String> {
     use std::io::Write;
     let client = http_client();
-    let download_url = crate::scraper::resolve_download_url(client, mod_page_url).await?;
     let bytes = client
-        .get(&download_url)
+        .get(url)
         .send().await.map_err(|e| e.to_string())?
         .bytes().await.map_err(|e| e.to_string())?
         .to_vec();
@@ -548,6 +547,7 @@ async fn extract_to_pool(
     mod_name: &str,
     version: &str,
     mod_page_url: &str,
+    version_download_url: Option<&str>,
 ) -> Result<(String, std::path::PathBuf), String> {
     let pool_base = get_pool_base(app)?;
     let version_dir = pool_base.join(format!("{}-{}", mod_id, version));
@@ -559,7 +559,11 @@ async fn extract_to_pool(
     }
 
     let zip_path = std::env::temp_dir().join(format!("coi_dl_{}.zip", mod_id));
-    download_zip_to_file(mod_page_url, &zip_path).await?;
+    let dl_url = match version_download_url {
+        Some(direct) => direct.to_string(),
+        None => crate::scraper::resolve_download_url(http_client(), mod_page_url).await?,
+    };
+    download_zip_to_file(&dl_url, &zip_path).await?;
 
     let file = std::fs::File::open(&zip_path).map_err(|e| e.to_string())?;
     let mut archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
@@ -650,7 +654,7 @@ pub async fn update_all_mods(
             .ok_or_else(|| format!("Mod id={} not found in database", mod_id))?;
 
         let (folder_name, pool_dir) = extract_to_pool(
-            &app, mod_id, &mod_entry.name, &mod_entry.version_available, &mod_page_url,
+            &app, mod_id, &mod_entry.name, &mod_entry.version_available, &mod_page_url, None,
         ).await?;
 
         let link = std::path::Path::new(&folder).join(&folder_name);
@@ -676,6 +680,8 @@ pub async fn install_mod(
     app: tauri::AppHandle,
     db: State<'_, Database>,
     mod_id: String,
+    version: Option<String>,
+    version_download_url: Option<String>,
 ) -> Result<(), String> {
     check_game_not_running()?;
     let folder = db.get_setting("mods_folder").await
@@ -691,8 +697,11 @@ pub async fn install_mod(
         .map_err(|e| e.to_string())?
         .ok_or_else(|| format!("Mod id={} not found in database", mod_id))?;
 
+    let target_version = version.as_deref().unwrap_or(&mod_entry.version_available);
+    let dl_url = version_download_url.as_deref();
+
     let (folder_name, pool_dir) = extract_to_pool(
-        &app, &mod_id, &mod_entry.name, &mod_entry.version_available, &mod_page_url,
+        &app, &mod_id, &mod_entry.name, target_version, &mod_page_url, dl_url,
     ).await?;
 
     let link = std::path::Path::new(&folder).join(&folder_name);
@@ -700,7 +709,7 @@ pub async fn install_mod(
     create_symlink(&pool_dir, &link)?;
 
     db.add_profile_mod(
-        &profile_id, &mod_id, &mod_entry.version_available,
+        &profile_id, &mod_id, target_version,
         Some(pool_dir.to_str().unwrap_or("")), Some(&folder_name),
     ).await.map_err(|e| e.to_string())?;
 
@@ -714,6 +723,8 @@ pub async fn update_mod(
     app: tauri::AppHandle,
     db: State<'_, Database>,
     mod_id: String,
+    version: Option<String>,
+    version_download_url: Option<String>,
 ) -> Result<(), String> {
     check_game_not_running()?;
     let folder = db.get_setting("mods_folder").await
@@ -729,8 +740,11 @@ pub async fn update_mod(
         .map_err(|e| e.to_string())?
         .ok_or_else(|| format!("Mod id={} not found in database", mod_id))?;
 
+    let target_version = version.as_deref().unwrap_or(&mod_entry.version_available);
+    let dl_url = version_download_url.as_deref();
+
     let (folder_name, pool_dir) = extract_to_pool(
-        &app, &mod_id, &mod_entry.name, &mod_entry.version_available, &mod_page_url,
+        &app, &mod_id, &mod_entry.name, target_version, &mod_page_url, dl_url,
     ).await?;
 
     let link = std::path::Path::new(&folder).join(&folder_name);
@@ -738,7 +752,7 @@ pub async fn update_mod(
     create_symlink(&pool_dir, &link)?;
 
     db.add_profile_mod(
-        &profile_id, &mod_id, &mod_entry.version_available,
+        &profile_id, &mod_id, target_version,
         Some(pool_dir.to_str().unwrap_or("")), Some(&folder_name),
     ).await.map_err(|e| e.to_string())?;
 

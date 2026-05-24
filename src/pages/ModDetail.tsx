@@ -28,7 +28,7 @@ interface ModDetailProps {
 	modId: string;
 	onBack: () => void;
 	onUpdate: (mod: Mod) => void;
-	onInstall: (mod: Mod) => void;
+	onInstall: (mod: Mod, version?: string, versionDownloadUrl?: string) => void;
 	onUninstall: (mod: Mod) => void;
 	installingIds: Set<string>;
 	allMods: Mod[];
@@ -1433,7 +1433,7 @@ export function ModDetail({
 										</h4>
 										{selectedVersion.download_url && localMod && (
 											<Button
-												onClick={() => onInstall(localMod)}
+												onClick={() => onInstall(localMod, selectedVersion.version, selectedVersion.download_url)}
 												size="sm"
 												style={{ padding: "6px 14px", height: "auto" }}
 												className="text-[12px] font-bold gap-1.5"
