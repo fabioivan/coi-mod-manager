@@ -33,6 +33,11 @@ const ERROR_TRANSLATIONS: Record<string, string> = {
 	"Failed to load mod": "error.failed_to_load_mod",
 	"Selector error:": "error.selector_error",
 	"Invalid mod URL": "error.invalid_mod_url",
+	"Game is running.": "error.game_is_running",
+	"Permission denied": "error.permission_denied",
+	"Access denied": "error.permission_denied",
+	"Access is denied": "error.permission_denied",
+	"os error 5": "error.permission_denied",
 	"This mod has no dependencies.": "",
 };
 

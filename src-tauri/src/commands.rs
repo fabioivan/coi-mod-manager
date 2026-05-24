@@ -19,6 +19,46 @@ fn generate_id() -> String {
     format!("p{}", SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos())
 }
 
+fn is_game_running() -> bool {
+    let names = ["Captain of Industry", "Captain of Industry.exe", "Captain of Industry.x86_64"];
+    for name in &names {
+        #[cfg(target_os = "windows")]
+        {
+            use std::process::Command;
+            if let Ok(out) = Command::new("tasklist")
+                .args(["/FI", &format!("IMAGENAME eq {}", name), "/NH"])
+                .output()
+            {
+                let s = String::from_utf8_lossy(&out.stdout);
+                if s.contains(name) && !s.contains("No tasks") {
+                    return true;
+                }
+            }
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            use std::process::Command;
+            if let Ok(out) = Command::new("pgrep")
+                .args(["-x", name])
+                .output()
+            {
+                if out.status.success() {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+fn check_game_not_running() -> Result<(), String> {
+    if is_game_running() {
+        Err("Game is running. Please close Captain of Industry before installing, updating, or uninstalling mods.".to_string())
+    } else {
+        Ok(())
+    }
+}
+
 #[derive(serde::Serialize, Clone)]
 pub struct UpdateInfo {
     pub version: String,
@@ -118,6 +158,7 @@ pub async fn switch_profile(
     db: State<'_, Database>,
     profile_id: String,
 ) -> Result<(), String> {
+    check_game_not_running()?;
     let folder = db.get_setting("mods_folder").await
         .map_err(|e| e.to_string())?
         .ok_or("Mods folder not configured. Go to Settings.")?;
@@ -590,6 +631,7 @@ pub async fn update_all_mods(
     app: tauri::AppHandle,
     db: State<'_, Database>,
 ) -> Result<usize, String> {
+    check_game_not_running()?;
     let folder = db.get_setting("mods_folder").await
         .map_err(|e| e.to_string())?
         .ok_or("Mods folder not configured. Go to Settings.")?;
@@ -635,6 +677,7 @@ pub async fn install_mod(
     db: State<'_, Database>,
     mod_id: String,
 ) -> Result<(), String> {
+    check_game_not_running()?;
     let folder = db.get_setting("mods_folder").await
         .map_err(|e| e.to_string())?
         .ok_or("Mods folder not configured. Go to Settings.")?;
@@ -672,6 +715,7 @@ pub async fn update_mod(
     db: State<'_, Database>,
     mod_id: String,
 ) -> Result<(), String> {
+    check_game_not_running()?;
     let folder = db.get_setting("mods_folder").await
         .map_err(|e| e.to_string())?
         .ok_or("Mods folder not configured. Go to Settings.")?;
@@ -709,6 +753,7 @@ pub async fn uninstall_mod(
     db: State<'_, Database>,
     mod_id: String,
 ) -> Result<(), String> {
+    check_game_not_running()?;
     let folder = db.get_setting("mods_folder").await
         .map_err(|e| e.to_string())?
         .ok_or("Mods folder not configured. Go to Settings.")?;

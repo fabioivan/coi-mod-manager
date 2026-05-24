@@ -195,6 +195,8 @@
     "failed_to_access": "Failed to access mod page.",
     "failed_to_load_mod": "Failed to load mod details.",
     "selector_error": "Internal processing error.",
-    "invalid_mod_url": "Invalid mod URL."
+    "invalid_mod_url": "Invalid mod URL.",
+    "game_is_running": "Please close Captain of Industry before installing, updating, or uninstalling mods.",
+    "permission_denied": "Access denied. Make sure you have write permission to the mods folder and that the game is not running."
   }
 }
