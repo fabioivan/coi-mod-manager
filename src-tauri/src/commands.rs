@@ -467,8 +467,8 @@ fn find_game_install_dir() -> Option<String> {
 			r"C:\Program Files\Steam\steamapps\common\Captain of Industry",
 		];
 		let found = candidates.into_iter().find(|p| std::path::Path::new(p).exists());
-		if found.is_some() {
-			return found;
+		if let Some(p) = found {
+			return Some(p.to_string());
 		}
 		if let Ok(steam_path) = std::env::var("STEAM_PATH") {
 			let path = std::path::PathBuf::from(steam_path)
