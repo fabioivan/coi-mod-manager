@@ -63,12 +63,12 @@ jobs:
             ## 🎮 CoI Mod Manager ${{ github.ref_name }}
 
             ### ✨ What's New
-            - **Auto-migration of mod settings**: when updating a mod, user-generated files (configs, saves) from the old version are automatically copied to the new one — no manual migration needed
-            - **Profiles**: create, switch, export, and import isolated mod profiles
-            - **Mod Pool**: mods are shared across profiles — no re-downloading
-            - **Profile selection screen** on startup
-            - **Screenshots** in README
-            - Memory and stability fixes
+            - **Game version detection**: automatically detects your installed game version from `changelog.txt` — no more manual guessing
+            - **Version compatibility warning**: warns before installing a mod that doesn't match your game version
+            - **Expanded version filter**: version ranges (e.g. "0.8.2 – 0.8.5") are expanded into individual versions for easier filtering, sorted newest-first
+            - **Status bar**: shows your game version, total Mods folder size, and installed mod count at the bottom of the app
+            - **Default language** changed to English
+            - **Chinese (Simplified)** translation added
 
           releaseDraft: true
           prerelease: false
