@@ -1,4 +1,5 @@
 import { Map, Package, Settings } from "lucide-react";
+import { type ElementType } from "react";
 
 type TabView = "blueprints" | "mods" | "settings" | "details";
 
@@ -9,7 +10,7 @@ interface NavSidebarProps {
 
 const NAV_ITEMS: {
   id: "blueprints" | "mods" | "settings";
-  icon: React.ElementType;
+  icon: ElementType;
   label: string;
   activeColor: string;
 }[] = [
