@@ -7,11 +7,14 @@ import { Sidebar } from "@/components/Sidebar";
 import { StatusBar } from "@/components/StatusBar";
 import { TopBar } from "@/components/TopBar";
 import { UpdateModal } from "@/components/UpdateModal";
+import { NavSidebar } from "@/components/NavSidebar";
 import { Toaster } from "@/components/ui/toaster";
 import { useToast } from "@/hooks/use-toast";
+import { BlueprintList } from "@/pages/BlueprintList";
 import { ModDetail } from "@/pages/ModDetail";
 import { ModList } from "@/pages/ModList";
 import { Settings } from "@/pages/Settings";
+import type { Blueprint } from "@/types/blueprint";
 import { type SidebarFilters, SORT_OPTIONS } from "@/types/filters";
 import { getModStatus, type Mod } from "@/types/mod";
 import type { Profile } from "@/types/profile";
@@ -59,13 +62,17 @@ function translateError(msg: string, t: (key: string) => string): string {
 	return msg;
 }
 
+type TabView = "blueprints" | "mods" | "settings" | "details";
+
 export default function App() {
 	const { i18n, t } = useTranslation();
 	const { toast } = useToast();
 	const [mods, setMods] = useState<Mod[]>([]);
+	const [blueprints, setBlueprints] = useState<Blueprint[]>([]);
 	const [syncing, setSyncing] = useState(false);
+	const [blueprintSyncing, setBlueprintSyncing] = useState(false);
 	const [installingIds, setInstallingIds] = useState<Set<string>>(new Set());
-	const [view, setView] = useState<"mods" | "settings" | "details">("mods");
+	const [view, setView] = useState<TabView>("blueprints");
 	const [selectedModId, setSelectedModId] = useState<string | null>(null);
 	const [appUpdate, setAppUpdate] = useState<{
 		version: string;
@@ -111,6 +118,7 @@ export default function App() {
 
 	useEffect(() => {
 		let unlisten: (() => void) | undefined;
+		let unlistenBlueprints: (() => void) | undefined;
 
 		async function init() {
 			try {
@@ -150,10 +158,23 @@ export default function App() {
 				console.error("Failed to load mods:", e);
 			}
 
+			try {
+				const result = await invoke<Blueprint[]>("get_blueprints");
+				setBlueprints(result);
+			} catch (e) {
+				console.error("Failed to load blueprints:", e);
+			}
+
 			unlisten = await listen("mods-updated", async () => {
 				const result = await invoke<Mod[]>("get_mods");
 				setMods(result);
 				setSyncing(false);
+			});
+
+			unlistenBlueprints = await listen("blueprints-updated", async () => {
+				const result = await invoke<Blueprint[]>("get_blueprints");
+				setBlueprints(result);
+				setBlueprintSyncing(false);
 			});
 
 			await listen<string>("mods-sync-error", (e) => {
@@ -183,9 +204,7 @@ export default function App() {
 				showToast(t("toast.update_restart"), "success");
 			});
 
-			await listen("update-progress", () => {
-				// progress UI not yet implemented
-			});
+			await listen("update-progress", () => {});
 
 			await listen<number>("mods-updated-notification", (e) => {
 				const count = e.payload;
@@ -196,6 +215,7 @@ export default function App() {
 		init();
 		return () => {
 			unlisten?.();
+			unlistenBlueprints?.();
 		};
 	}, [i18n, t, showToast, loadProfiles]);
 
@@ -323,6 +343,17 @@ export default function App() {
 		}
 	}
 
+	async function handleBlueprintSync() {
+		setBlueprintSyncing(true);
+		try {
+			await invoke("sync_blueprints");
+		} catch (e) {
+			console.error("Failed to sync blueprints:", e);
+			showToast(translateError(String(e), t), "error");
+			setBlueprintSyncing(false);
+		}
+	}
+
 	const tags = useMemo(() => {
 		const set = new Set<string>();
 		for (const m of mods) {
@@ -394,17 +425,42 @@ export default function App() {
 				overflow: "hidden",
 			}}
 		>
+			<TopBar
+				outdatedCount={outdatedCount}
+				onRefresh={handleRefresh}
+				onUpdateAll={handleUpdateAll}
+				onBlueprintSync={handleBlueprintSync}
+				blueprintSyncing={blueprintSyncing}
+				loading={syncing}
+				view={view}
+				onViewChange={setView}
+				appUpdate={appUpdate}
+				activeProfile={activeProfile}
+				onInstallUpdate={async () => {
+					setSyncing(true);
+					try {
+						await invoke("install_update");
+					} catch (e) {
+						console.error("Failed to install update:", e);
+						showToast(translateError(String(e), t), "error");
+						setSyncing(false);
+					}
+				}}
+			/>
 			<div style={{ display: "flex", flex: 1, minHeight: 0 }}>
 				<Toaster />
-				<Sidebar
-					tags={tags}
-					counts={tagCounts}
-					total={mods.length}
-					gameVersions={gameVersions}
-					filters={filters}
-					onFiltersChange={setFilters}
-					detectedGameVersion={savedGameVersion}
-				/>
+				<NavSidebar view={view} onViewChange={setView} />
+				{view === "mods" || view === "details" ? (
+					<Sidebar
+						tags={tags}
+						counts={tagCounts}
+						total={mods.length}
+						gameVersions={gameVersions}
+						filters={filters}
+						onFiltersChange={setFilters}
+						detectedGameVersion={savedGameVersion}
+					/>
+				) : null}
 				<div
 					style={{
 						display: "flex",
@@ -413,27 +469,9 @@ export default function App() {
 						minWidth: 0,
 					}}
 				>
-					<TopBar
-						outdatedCount={outdatedCount}
-						onRefresh={handleRefresh}
-						onUpdateAll={handleUpdateAll}
-						loading={syncing}
-						view={view}
-						onViewChange={setView}
-						appUpdate={appUpdate}
-						activeProfile={activeProfile}
-						onInstallUpdate={async () => {
-							setSyncing(true);
-							try {
-								await invoke("install_update");
-							} catch (e) {
-								console.error("Failed to install update:", e);
-								showToast(translateError(String(e), t), "error");
-								setSyncing(false);
-							}
-						}}
-					/>
-					{view === "mods" ? (
+					{view === "blueprints" ? (
+						<BlueprintList blueprints={blueprints} />
+					) : view === "mods" ? (
 						<ModList
 							mods={sortedMods}
 							filters={filters}
