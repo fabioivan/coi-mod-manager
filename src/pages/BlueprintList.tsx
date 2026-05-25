@@ -1,4 +1,4 @@
-import { Search } from "lucide-react";
+import { ChevronDown, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BlueprintCard } from "@/components/BlueprintCard";
@@ -7,13 +7,59 @@ import {
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
-	SelectValue,
 } from "@/components/ui/select";
 import type { Blueprint } from "@/types/blueprint";
 
 interface BlueprintListProps {
 	blueprints: Blueprint[];
 }
+
+const SORT_OPTIONS = [
+	{ value: "updated", labelKey: "common.updated" },
+	{ value: "downloads", labelKey: "common.downloads" },
+	{ value: "favorites", labelKey: "common.favorites" },
+	{ value: "approval", labelKey: "common.approval" },
+] as const;
+
+const TOOLBAR: React.CSSProperties = {
+	display: "flex",
+	alignItems: "stretch",
+	height: "44px",
+	background: "#272727",
+	borderBottom: "1px solid #1a1a1a",
+	flexShrink: 0,
+};
+
+const SORT_TRIGGER: React.CSSProperties = {
+	display: "flex",
+	alignItems: "center",
+	gap: "8px",
+	height: "100%",
+	padding: "0 14px",
+	background: "transparent",
+	border: "none",
+	borderRight: "1px solid #1a1a1a",
+	color: "#e5ca5f",
+	fontSize: "11px",
+	fontWeight: 700,
+	letterSpacing: "0.08em",
+	textTransform: "uppercase",
+	cursor: "pointer",
+	outline: "none",
+	minWidth: "160px",
+	whiteSpace: "nowrap",
+};
+
+const SEARCH_INPUT: React.CSSProperties = {
+	flex: 1,
+	height: "100%",
+	background: "transparent",
+	border: "none",
+	padding: "0 2.5rem 0 1rem",
+	color: "#c6c6c6",
+	fontSize: "13px",
+	outline: "none",
+};
 
 export function BlueprintList({ blueprints }: BlueprintListProps) {
 	const { t } = useTranslation();
@@ -51,45 +97,56 @@ export function BlueprintList({ blueprints }: BlueprintListProps) {
 		return list;
 	}, [blueprints, search, sortBy]);
 
+	const currentLabel = SORT_OPTIONS.find((o) => o.value === sortBy);
+
 	return (
 		<div className="flex flex-col flex-1 min-h-0">
-			<div
-				className="flex items-stretch border-b border-[#1a1a1a] flex-shrink-0"
-				style={{ background: "#2a2a2a", height: "44px" }}
-			>
-				{/* Sort dropdown — estilo site: texto dourado uppercase */}
+			{/* Toolbar — estilo hub.coigame.com */}
+			<div style={TOOLBAR}>
+				{/* Dropdown de ordenação: texto dourado uppercase, sem bordas arredondadas */}
 				<Select value={sortBy} onValueChange={setSortBy}>
-					<SelectTrigger
-						className="rounded-none border-0 border-r border-[#1a1a1a] h-full text-xs font-bold uppercase tracking-wider px-4 gap-2 w-44 focus:ring-0 shadow-none"
-						style={{ color: "#e5ca5f" }}
-					>
-						<SelectValue />
+					<SelectTrigger asChild>
+						<button type="button" style={SORT_TRIGGER}>
+							<span>{currentLabel ? t(currentLabel.labelKey) : ""}</span>
+							<ChevronDown size={12} color="#e5ca5f" />
+						</button>
 					</SelectTrigger>
 					<SelectContent>
-						<SelectItem value="updated">{t("common.updated")}</SelectItem>
-						<SelectItem value="downloads">{t("common.downloads")}</SelectItem>
-						<SelectItem value="favorites">{t("common.favorites")}</SelectItem>
-						<SelectItem value="approval">{t("common.approval")}</SelectItem>
+						{SORT_OPTIONS.map((o) => (
+							<SelectItem key={o.value} value={o.value}>
+								{t(o.labelKey)}
+							</SelectItem>
+						))}
 					</SelectContent>
 				</Select>
 
-				{/* Campo de busca — ocupa o restante, ícone à direita */}
-				<div className="relative flex-1 flex items-center">
+				{/* Campo de busca: ocupa o restante, ícone à direita */}
+				<div style={{ flex: 1, position: "relative", display: "flex", alignItems: "center" }}>
 					<input
 						placeholder={t("blueprintList.search_placeholder")}
 						value={search}
 						onChange={(e) => setSearch(e.target.value)}
-						className="w-full h-full bg-transparent text-sm px-4 outline-none"
-						style={{ color: "#c6c6c6" }}
+						style={SEARCH_INPUT}
 					/>
 					<Search
 						size={15}
-						className="absolute right-4 text-muted-foreground pointer-events-none"
+						color="#555"
+						style={{ position: "absolute", right: "1rem", pointerEvents: "none" }}
 					/>
 				</div>
 
 				{/* Contador */}
-				<div className="flex items-center px-4 border-l border-[#1a1a1a] text-xs text-muted-foreground whitespace-nowrap">
+				<div
+					style={{
+						display: "flex",
+						alignItems: "center",
+						padding: "0 14px",
+						borderLeft: "1px solid #1a1a1a",
+						fontSize: "11px",
+						color: "#666",
+						whiteSpace: "nowrap",
+					}}
+				>
 					{t("blueprintList.blueprints_count", { count: filtered.length })}
 				</div>
 			</div>
