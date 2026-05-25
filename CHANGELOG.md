@@ -16,8 +16,7 @@
 - "Check for Updates" button in Settings
 - Update notification icon in the status bar and an update modal with release notes and "Update Now" button
 - Changelog viewer — click the app version in the status bar to read release history
-- Portable Windows build (`--bundles nsis,msi,portable`) — no installation or admin needed
-- NSIS installer mode changed to `currentUser` — no longer requires admin privileges
+- NSIS installer mode changed to `currentUser` — installs to `%LOCALAPPDATA%`, no admin privileges needed
 - Linux builds now produce only `.deb` and `.AppImage` (no `.rpm`)
 - Raw HTML elements replaced with ShadcnUI `Button` and `ScrollArea` components in modals and status bar
 

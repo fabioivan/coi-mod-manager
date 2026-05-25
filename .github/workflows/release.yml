@@ -66,7 +66,6 @@ jobs:
             ### ✨ What's New
             - **Safety**: mod directory deletion now checks for `manifest.json` — prevents accidental deletion of savegames, settings, or source code
             - **Per‑profile config backup**: each profile keeps its own mod config files, preserved when switching profiles
-            - **Portable build** (.exe): run from any folder, no installation or admin required
             - **NSIS installer no longer requires admin**: installs to `%LOCALAPPDATA%` instead of `Program Files`
             - **Changelog viewer**: click the app version in the status bar to see the full release history
             - **Update notification**: icon appears in the status bar when a new version is available, with release notes and "Update Now"
