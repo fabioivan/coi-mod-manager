@@ -1,7 +1,7 @@
 import { ArrowLeft, Download, RefreshCw, Settings, User } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { Profile } from "@/types/profile";
+import type { Profile } from "@/types/profile";
 
 interface UpdateInfo {
 	version: string;
@@ -12,9 +12,11 @@ interface TopBarProps {
 	outdatedCount: number;
 	onRefresh: () => void;
 	onUpdateAll: () => void;
+	onBlueprintSync: () => void;
+	blueprintSyncing: boolean;
 	loading: boolean;
-	view: "mods" | "settings" | "details";
-	onViewChange: (v: "mods" | "settings" | "details") => void;
+	view: "blueprints" | "mods" | "settings" | "details";
+	onViewChange: (v: "blueprints" | "mods" | "settings" | "details") => void;
 	appUpdate?: UpdateInfo | null;
 	onInstallUpdate?: () => void;
 	activeProfile?: Profile | null;
@@ -31,6 +33,8 @@ export function TopBar({
 	outdatedCount,
 	onRefresh,
 	onUpdateAll,
+	onBlueprintSync,
+	blueprintSyncing,
 	loading,
 	view,
 	onViewChange,
@@ -104,7 +108,7 @@ export function TopBar({
 						</Button>
 					</>
 				)}
-				{outdatedCount > 0 && (
+				{outdatedCount > 0 && view !== "blueprints" && (
 					<>
 						<span
 							style={{ fontSize: "12px", color: C.yellow, fontWeight: 600 }}
@@ -124,6 +128,22 @@ export function TopBar({
 			</div>
 
 			<div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+				{view === "blueprints" && (
+					<Button
+						onClick={onBlueprintSync}
+						disabled={blueprintSyncing}
+						variant="ghost"
+						size="sm"
+						style={{ padding: "6px 14px", height: "auto" }}
+						className="text-[12px] text-muted-foreground uppercase font-semibold tracking-wide"
+					>
+						<RefreshCw
+							size={12}
+							className={blueprintSyncing ? "animate-spin" : ""}
+						/>
+						{blueprintSyncing ? t("topBar.btn_syncing") : "Sync"}
+					</Button>
+				)}
 				{view === "mods" && (
 					<Button
 						onClick={onRefresh}
@@ -135,6 +155,17 @@ export function TopBar({
 					>
 						<RefreshCw size={12} className={loading ? "animate-spin" : ""} />
 						{loading ? t("topBar.btn_syncing") : t("topBar.btn_sync")}
+					</Button>
+				)}
+				{view === "details" && (
+					<Button
+						onClick={() => onViewChange("mods")}
+						title={t("topBar.tooltip_back")}
+						variant="ghost"
+						size="icon"
+						className="h-7 w-7 text-muted-foreground"
+					>
+						<ArrowLeft size={15} />
 					</Button>
 				)}
 				<Button

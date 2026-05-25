@@ -1,3 +1,4 @@
+mod blueprint_scraper;
 mod commands;
 mod db;
 mod models;
@@ -6,11 +7,11 @@ mod scraper;
 use commands::{
     check_app_update_on_startup, check_for_update, create_profile, delete_profile,
     detect_game_version, detect_game_version_from_path, detect_mods_folder, export_profile,
-    get_active_profile, get_app_version, get_changelog, get_mod_details, get_mods,
+    get_active_profile, get_app_version, get_blueprints, get_changelog, get_mod_details, get_mods,
     get_mods_folder_size, get_profiles, get_setting, import_profile, install_mod, install_update,
-    pick_folder, rename_profile, run_scan_installed, run_scrape, scan_installed_mods,
-    set_default_profile, set_setting, switch_profile, sync_mods, uninstall_mod, update_all_mods,
-    update_mod,
+    pick_folder, rename_profile, run_blueprint_scrape, run_scan_installed, run_scrape,
+    scan_installed_mods, set_default_profile, set_setting, switch_profile, sync_blueprints,
+    sync_mods, uninstall_mod, update_all_mods, update_mod,
 };
 use db::Database;
 use tauri::Manager;
@@ -43,6 +44,14 @@ pub fn run() {
                 });
             }
 
+            // Sync blueprints in background
+            {
+                let handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    run_blueprint_scrape(&handle).await;
+                });
+            }
+
             // Scan mods instalados em background se pasta configurada
             {
                 let handle = app.handle().clone();
@@ -62,6 +71,8 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            get_blueprints,
+            sync_blueprints,
             get_mods,
             sync_mods,
             update_mod,

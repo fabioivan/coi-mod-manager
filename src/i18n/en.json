@@ -220,6 +220,23 @@
 		"app_version": "v{{version}}",
 		"update_available": "Update available"
 	},
+	"blueprintList": {
+		"filter_all": "All",
+		"search_placeholder": "Search blueprints...",
+		"no_blueprints": "No blueprints found",
+		"blueprints_count": "{{count}} blueprint",
+		"blueprints_count_plural": "{{count}} blueprints"
+	},
+	"blueprintCard": {
+		"by_author": "by {{author}}",
+		"time_now": "now",
+		"time_m_ago": "{{count}}m ago",
+		"time_h_ago": "{{count}}h ago",
+		"time_d_ago": "{{count}}d ago",
+		"time_mo_ago": "{{count}}mo ago",
+		"time_y_ago": "{{count}}y ago",
+		"no_date": "—"
+	},
 	"error": {
 		"mods_folder_not_configured": "Mods folder not configured. Go to Settings.",
 		"folder_not_found": "Folder not found.",

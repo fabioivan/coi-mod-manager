@@ -1,4 +1,4 @@
-use crate::models::{Mod, Profile, ProfileMod};
+use crate::models::{Blueprint, Mod, Profile, ProfileMod};
 use rusqlite::{params, Connection, Result};
 use std::path::Path;
 use tokio::sync::Mutex;
@@ -157,6 +157,33 @@ impl Database {
                 ",
                 )?;
             }
+        }
+
+        let v9: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM schema_migrations WHERE version = 9",
+            [],
+            |r| r.get(0),
+        )?;
+        if v9 == 0 {
+            conn.execute_batch(
+                "
+                CREATE TABLE IF NOT EXISTS blueprints (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    author TEXT NOT NULL DEFAULT '',
+                    description TEXT NOT NULL DEFAULT '',
+                    thumbnail TEXT,
+                    downloads INTEGER NOT NULL DEFAULT 0,
+                    favorites INTEGER NOT NULL DEFAULT 0,
+                    approval_pct INTEGER NOT NULL DEFAULT -1,
+                    updated_at TEXT,
+                    url TEXT NOT NULL DEFAULT '',
+                    is_downloaded INTEGER NOT NULL DEFAULT 0,
+                    last_scraped_at TEXT
+                );
+                INSERT INTO schema_migrations (version) VALUES (9);
+            ",
+            )?;
         }
 
         Ok(())
@@ -471,7 +498,76 @@ impl Database {
              )",
             profile_id.replace('\'', "''"),
             profile_id.replace('\'', "''"),
-        ))?;
+            ))?;
+        Ok(())
+    }
+
+    // ─── Blueprint methods ───
+
+    pub async fn get_all_blueprints(&self) -> Result<Vec<Blueprint>> {
+        let conn = self.0.lock().await;
+        let mut stmt = conn.prepare(
+            "SELECT id, name, author, description, thumbnail,
+                    downloads, favorites, approval_pct, updated_at,
+                    url, is_downloaded, last_scraped_at
+             FROM blueprints
+             ORDER BY updated_at DESC NULLS LAST",
+        )?;
+
+        let blueprints = stmt
+            .query_map([], |row| {
+                Ok(Blueprint {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    author: row.get(2)?,
+                    description: row.get(3)?,
+                    thumbnail: row.get(4)?,
+                    downloads: row.get(5)?,
+                    favorites: row.get(6)?,
+                    approval_pct: row.get(7)?,
+                    updated_at: row.get(8)?,
+                    url: row.get(9)?,
+                    is_downloaded: row.get::<_, i32>(10)? != 0,
+                    last_scraped_at: row.get(11)?,
+                })
+            })?
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(blueprints)
+    }
+
+    pub async fn upsert_blueprint(&self, bp: &Blueprint) -> Result<()> {
+        let conn = self.0.lock().await;
+        conn.execute(
+            "INSERT INTO blueprints (id, name, author, description, thumbnail,
+                                     downloads, favorites, approval_pct, updated_at,
+                                     url, last_scraped_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)
+             ON CONFLICT(id) DO UPDATE SET
+                name            = excluded.name,
+                author          = excluded.author,
+                description     = excluded.description,
+                thumbnail       = excluded.thumbnail,
+                downloads       = excluded.downloads,
+                favorites       = excluded.favorites,
+                approval_pct    = excluded.approval_pct,
+                updated_at      = excluded.updated_at,
+                url             = excluded.url,
+                last_scraped_at = excluded.last_scraped_at",
+            params![
+                bp.id,
+                bp.name,
+                bp.author,
+                bp.description,
+                bp.thumbnail,
+                bp.downloads,
+                bp.favorites,
+                bp.approval_pct,
+                bp.updated_at,
+                bp.url,
+                bp.last_scraped_at
+            ],
+        )?;
         Ok(())
     }
 }

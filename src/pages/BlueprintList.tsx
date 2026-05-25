@@ -1,4 +1,4 @@
-import { Search } from "lucide-react";
+import { ArrowUpDown, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BlueprintCard } from "@/components/BlueprintCard";
@@ -64,11 +64,13 @@ export function BlueprintList({ blueprints }: BlueprintListProps) {
 						placeholder={t("blueprintList.search_placeholder")}
 						value={search}
 						onChange={(e) => setSearch(e.target.value)}
-						className="pl-7 h-8 text-xs"
+						className="h-8 text-xs"
+						style={{ paddingLeft: "1.75rem" }}
 					/>
 				</div>
 				<Select value={sortBy} onValueChange={setSortBy}>
-					<SelectTrigger className="w-36 h-8 text-xs">
+					<SelectTrigger className="w-44 h-8 text-xs gap-1.5">
+						<ArrowUpDown size={11} className="text-muted-foreground flex-shrink-0" />
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>

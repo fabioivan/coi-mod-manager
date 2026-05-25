@@ -220,6 +220,23 @@
 		"app_version": "v{{version}}",
 		"update_available": "有可用更新"
 	},
+	"blueprintList": {
+		"filter_all": "全部",
+		"search_placeholder": "搜索蓝图...",
+		"no_blueprints": "未找到蓝图",
+		"blueprints_count": "{{count}} 个蓝图",
+		"blueprints_count_plural": "{{count}} 个蓝图"
+	},
+	"blueprintCard": {
+		"by_author": "作者：{{author}}",
+		"time_now": "刚刚",
+		"time_m_ago": "{{count}} 分钟前",
+		"time_h_ago": "{{count}} 小时前",
+		"time_d_ago": "{{count}} 天前",
+		"time_mo_ago": "{{count}} 个月前",
+		"time_y_ago": "{{count}} 年前",
+		"no_date": "—"
+	},
 	"error": {
 		"mods_folder_not_configured": "未配置模组文件夹。请前往设置。",
 		"folder_not_found": "未找到文件夹。",

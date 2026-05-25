@@ -1,5 +1,5 @@
 use crate::db::Database;
-use crate::models::{ExportData, ExportMod, Mod, Profile};
+use crate::models::{Blueprint, ExportData, ExportMod, Mod, Profile};
 use base64::{engine::general_purpose, Engine as _};
 use std::sync::OnceLock;
 use tauri::{Emitter, Manager, State};
@@ -819,6 +819,35 @@ pub async fn run_scrape(app: &tauri::AppHandle, order_by: &str, time_range: &str
         }
         Err(e) => {
             eprintln!("scraping error: {e}");
+            let _ = app.emit("mods-sync-error", e.to_string());
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn get_blueprints(db: State<'_, Database>) -> Result<Vec<Blueprint>, String> {
+    db.get_all_blueprints().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn sync_blueprints(app: tauri::AppHandle) -> Result<(), String> {
+    run_blueprint_scrape(&app).await;
+    Ok(())
+}
+
+pub async fn run_blueprint_scrape(app: &tauri::AppHandle) {
+    match crate::blueprint_scraper::scrape_all_blueprints().await {
+        Ok(blueprints) => {
+            let db = app.state::<Database>();
+            for bp in &blueprints {
+                if let Err(e) = db.upsert_blueprint(bp).await {
+                    eprintln!("blueprint upsert error: {e}");
+                }
+            }
+            let _ = app.emit("blueprints-updated", blueprints.len());
+        }
+        Err(e) => {
+            eprintln!("blueprint scraping error: {e}");
             let _ = app.emit("mods-sync-error", e.to_string());
         }
     }

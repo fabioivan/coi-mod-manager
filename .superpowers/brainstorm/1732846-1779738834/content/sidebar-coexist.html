@@ -1,0 +1,152 @@
+<style>
+  .app-shell { background: #1a1a1a; border-radius: 8px; overflow: hidden; font-family: system-ui, sans-serif; border: 1px solid #333; }
+  .app-topbar { background: #2f2f2f; padding: 7px 12px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #222; font-size: 11px; }
+  .app-topbar .logo { font-weight: 700; color: #e5ca5f; }
+  .app-topbar .sp { flex: 1; }
+  .app-topbar .btn { background: #414141; color: #c6c6c6; font-size: 10px; padding: 2px 7px; border-radius: 3px; }
+  .app-body { display: flex; height: 140px; }
+  .app-status { background: #1e1e1e; padding: 3px 12px; border-top: 1px solid #222; font-size: 9px; color: #666; }
+
+  /* Nav sidebar */
+  .nav-side { width: 48px; background: #1e1e1e; display: flex; flex-direction: column; align-items: center; padding: 6px 0; gap: 3px; border-right: 1px solid #2a2a2a; flex-shrink: 0; }
+  .nav-icon { width: 36px; height: 36px; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 6px; color: #888; font-size: 9px; gap: 1px; cursor: pointer; border: 1px solid transparent; }
+  .nav-icon.active { background: #2a2a2a; color: #7ed3f6; border-color: #444; }
+  .nav-icon .ico { font-size: 13px; line-height: 1; }
+
+  /* Filter sidebar */
+  .filter-side { width: 90px; background: #222; border-right: 1px solid #2a2a2a; padding: 6px 0; flex-shrink: 0; }
+  .filter-side .fhead { font-size: 9px; color: #666; padding: 0 8px 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .filter-tag { font-size: 9px; padding: 3px 8px; color: #aaa; cursor: pointer; }
+  .filter-tag.sel { color: #7ed3f6; background: #2a2a2a; }
+
+  /* Main content */
+  .main { flex: 1; background: #292929; padding: 6px; overflow: hidden; }
+  .mini-card { background: #333; border-radius: 4px; padding: 4px 6px; margin-bottom: 3px; font-size: 9px; color: #bbb; display: flex; gap: 4px; align-items: center; }
+  .mini-card .dot { width: 6px; height: 6px; border-radius: 50%; background: #6eb660; flex-shrink: 0; }
+  .mini-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; }
+  .mini-bp { background: #333; border-radius: 4px; overflow: hidden; }
+  .mini-bp .img { height: 32px; background: #444; }
+  .mini-bp .txt { font-size: 8px; color: #bbb; padding: 3px; }
+
+  /* Opção C: sidebar única que muda */
+  .combo-side { width: 110px; background: #1e1e1e; border-right: 1px solid #2a2a2a; display: flex; flex-direction: column; flex-shrink: 0; }
+  .combo-tabs { display: flex; border-bottom: 1px solid #2a2a2a; }
+  .combo-tab { flex: 1; padding: 5px 0; text-align: center; font-size: 8px; color: #666; border-bottom: 2px solid transparent; }
+  .combo-tab.active { color: #7ed3f6; border-bottom-color: #7ed3f6; }
+  .combo-body { flex: 1; padding: 5px 6px; }
+</style>
+
+<h2>Como a sidebar de filtros (Mods) convive com a nav lateral?</h2>
+<p class="subtitle">Você escolheu navegação vertical — como organizar as duas sidebars?</p>
+
+<div class="cards" style="margin-top:1rem">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:0">
+      <div class="app-shell">
+        <div class="app-topbar"><span class="logo">⚙</span><span class="sp"></span><span class="btn">Sync</span></div>
+        <div class="app-body">
+          <div class="nav-side">
+            <div class="nav-icon">
+              <span class="ico">📐</span><span>BPs</span>
+            </div>
+            <div class="nav-icon active">
+              <span class="ico">🧩</span><span>Mods</span>
+            </div>
+            <div class="nav-icon">
+              <span class="ico">⚙</span><span>Set</span>
+            </div>
+          </div>
+          <div class="filter-side">
+            <div class="fhead">Tags</div>
+            <div class="filter-tag sel">▸ Todos</div>
+            <div class="filter-tag">Industry</div>
+            <div class="filter-tag">Transport</div>
+            <div class="filter-tag">QoL</div>
+          </div>
+          <div class="main">
+            <div class="mini-card"><div class="dot"></div>Mod Alpha v2.1</div>
+            <div class="mini-card"><div class="dot"></div>Mod Beta v1.0</div>
+            <div class="mini-card"><div class="dot" style="background:#e5ca5f"></div>Mod Gamma (update)</div>
+          </div>
+        </div>
+        <div class="app-status">12 mods instalados</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Duas sidebars separadas</h3>
+      <p>Nav de ícones (estreita) + sidebar de filtros contextual. Soma das duas quando necessário.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:0">
+      <div class="app-shell">
+        <div class="app-topbar"><span class="logo">⚙</span><span class="sp"></span><span class="btn">Sync</span></div>
+        <div class="app-body">
+          <div class="combo-side">
+            <div class="combo-tabs">
+              <div class="combo-tab">📐</div>
+              <div class="combo-tab active">🧩</div>
+              <div class="combo-tab">⚙</div>
+            </div>
+            <div class="combo-body">
+              <div class="filter-tag sel" style="font-size:8px">▸ Todos</div>
+              <div class="filter-tag" style="font-size:8px">Industry</div>
+              <div class="filter-tag" style="font-size:8px">Transport</div>
+              <div class="filter-tag" style="font-size:8px">QoL</div>
+            </div>
+          </div>
+          <div class="main">
+            <div class="mini-card"><div class="dot"></div>Mod Alpha v2.1</div>
+            <div class="mini-card"><div class="dot"></div>Mod Beta v1.0</div>
+            <div class="mini-card"><div class="dot" style="background:#e5ca5f"></div>Mod Gamma</div>
+          </div>
+        </div>
+        <div class="app-status">12 mods instalados</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Sidebar única combinada</h3>
+      <p>A nav de abas fica no topo da sidebar. Abaixo, os filtros mudam conforme a aba ativa. Uma sidebar só.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:0">
+      <div class="app-shell">
+        <div class="app-topbar"><span class="logo">⚙</span><span class="sp"></span><span class="btn">Sync</span></div>
+        <div class="app-body">
+          <div class="nav-side">
+            <div class="nav-icon">
+              <span class="ico">📐</span><span>BPs</span>
+            </div>
+            <div class="nav-icon active">
+              <span class="ico">🧩</span><span>Mods</span>
+            </div>
+            <div class="nav-icon">
+              <span class="ico">⚙</span><span>Set</span>
+            </div>
+          </div>
+          <div class="main" style="display:flex;flex-direction:column">
+            <div style="padding:4px;display:flex;gap:4px;border-bottom:1px solid #333;font-size:9px;color:#888">
+              <span style="background:#333;padding:1px 6px;border-radius:3px;color:#7ed3f6">Todos</span>
+              <span style="padding:1px 6px">Industry</span>
+              <span style="padding:1px 6px">Transport</span>
+            </div>
+            <div style="flex:1;padding:4px">
+              <div class="mini-card"><div class="dot"></div>Mod Alpha v2.1</div>
+              <div class="mini-card"><div class="dot"></div>Mod Beta v1.0</div>
+            </div>
+          </div>
+        </div>
+        <div class="app-status">12 mods instalados</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Nav lateral + filtros em chips no topo</h3>
+      <p>Nav lateral só para trocar de aba. Filtros ficam como chips/pills na parte superior do conteúdo, sem sidebar de filtro.</p>
+    </div>
+  </div>
+
+</div>

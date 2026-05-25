@@ -9,6 +9,8 @@ import {
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { Card, CardFooter } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import {
 	DEVSTATE_LABELS,
 	DEVSTATE_STYLES,
@@ -25,17 +27,6 @@ interface ModCardProps {
 	showUninstall?: boolean;
 	onSelectMod?: (id: string) => void;
 }
-
-const C = {
-	grey: "#414141",
-	darkGrey: "#2f2f2f",
-	darkerGrey: "#292929",
-	borderGrey: "#222222",
-	metaGrey: "#a0a0a0",
-	lightGrey: "#f8f8f8",
-	lighterGrey: "#c6c6c6",
-	yellow: "#e5ca5f",
-};
 
 function timeAgo(
 	iso: string,
@@ -54,15 +45,15 @@ function timeAgo(
 	return t("modCard.time_y_ago", { count: Math.floor(mo / 12) });
 }
 
-const tag: React.CSSProperties = {
-	fontSize: "11px",
-	fontWeight: 600,
-	color: C.metaGrey,
-	backgroundColor: C.borderGrey,
-	padding: "2px 7px",
-	borderRadius: "3px",
-	whiteSpace: "nowrap",
-	flexShrink: 0,
+const C = {
+	grey: "#414141",
+	darkGrey: "#2f2f2f",
+	darkerGrey: "#292929",
+	borderGrey: "#222222",
+	metaGrey: "#a0a0a0",
+	lightGrey: "#f8f8f8",
+	lighterGrey: "#c6c6c6",
+	yellow: "#e5ca5f",
 };
 
 export function ModCard({
@@ -86,10 +77,19 @@ export function ModCard({
 	const devstyle = DEVSTATE_STYLES[mod.devstate];
 	const devlabel = t(`mod.${DEVSTATE_LABELS[mod.devstate]}`);
 
+	const tagStyle: React.CSSProperties = {
+		fontSize: "11px",
+		fontWeight: 600,
+		padding: "2px 7px",
+		borderRadius: "3px",
+		whiteSpace: "nowrap",
+		flexShrink: 0,
+	};
+
 	return (
-		<div
-			role="button"
-			tabIndex={0}
+		<Card
+			role={onSelectMod ? "button" : undefined}
+			tabIndex={onSelectMod ? 0 : undefined}
 			onClick={() => onSelectMod?.(mod.id)}
 			onKeyDown={(e) => {
 				if (onSelectMod && (e.key === "Enter" || e.key === " ")) {
@@ -98,45 +98,27 @@ export function ModCard({
 			}}
 			onMouseEnter={() => setHovered(true)}
 			onMouseLeave={() => setHovered(false)}
+			className={cn(
+				"overflow-hidden cursor-default border-[#222] relative",
+				hovered && "cursor-pointer",
+			)}
 			style={{
-				display: "flex",
-				flexDirection: "column",
 				backgroundColor: hovered ? "#4b4b4b" : C.grey,
-				borderRadius: "10px",
-				overflow: "hidden",
 				boxShadow: hovered
 					? "0 4px 12px rgba(0,0,0,0.45)"
 					: "0 2px 6px rgba(0,0,0,0.3)",
 				transform: hovered ? "translateY(-2px)" : "none",
 				transition:
 					"transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease",
-				cursor: onSelectMod ? "pointer" : "default",
-				minHeight: "210px",
 			}}
 		>
-			{/* Content area: icon + right column */}
-			<div
-				style={{
-					display: "flex",
-					flexDirection: "row",
-					flex: 1,
-					overflow: "hidden",
-				}}
-			>
-				{/* Thumbnail */}
-				<div style={{ flexShrink: 0 }}>
+			<div className="flex flex-row flex-1 overflow-hidden">
+				<div className="flex-shrink-0">
 					{mod.thumbnail ? (
 						<img
 							src={mod.thumbnail}
 							alt={`${mod.name} thumbnail`}
-							style={{
-								width: "128px",
-								height: "128px",
-								borderRadius: "6px",
-								objectFit: "cover",
-								margin: "10px",
-								display: "block",
-							}}
+							className="w-[128px] h-[128px] rounded-md object-cover m-2.5 block"
 						/>
 					) : (
 						<div
@@ -152,79 +134,39 @@ export function ModCard({
 					)}
 				</div>
 
-				{/* Right column */}
-				<div
-					style={{
-						flex: 1,
-						minWidth: 0,
-						padding: "10px 12px 10px 0",
-						display: "flex",
-						flexDirection: "column",
-						gap: "5px",
-						overflow: "hidden",
-					}}
-				>
-					{/* Name */}
+				<div className="flex-1 min-w-0 p-2.5 pl-0 flex flex-col gap-1 overflow-hidden">
 					<div
-						style={{
-							fontSize: "16px",
-							fontWeight: 700,
-							color: C.lightGrey,
-							lineHeight: 1.2,
-							overflow: "hidden",
-							textOverflow: "ellipsis",
-							whiteSpace: "nowrap",
-						}}
+						className="text-base font-bold truncate"
+						style={{ color: C.lightGrey, lineHeight: 1.2 }}
 					>
 						{mod.name}
 					</div>
 
-					{/* Author */}
 					{mod.author && (
-						<div
-							style={{
-								fontSize: "12px",
-								color: C.metaGrey,
-								overflow: "hidden",
-								textOverflow: "ellipsis",
-								whiteSpace: "nowrap",
-							}}
-						>
+						<div className="text-xs text-muted-foreground truncate">
 							{t("modCard.by_author", { author: mod.author })}
 						</div>
 					)}
 
-					{/* Description */}
 					{mod.description && (
 						<div
+							className="text-xs leading-relaxed overflow-hidden"
 							style={{
-								fontSize: "12px",
 								color: C.lighterGrey,
-								lineHeight: "1.4",
-								overflow: "hidden",
 								display: "-webkit-box",
 								WebkitLineClamp: 2,
 								WebkitBoxOrient: "vertical",
-								flex: "none",
 							}}
 						>
 							{mod.description}
 						</div>
 					)}
 
-					{/* Badges row: devstate + game version + install status */}
-					<div
-						style={{
-							display: "flex",
-							flexWrap: "wrap",
-							gap: "4px",
-							marginTop: "2px",
-						}}
-					>
+					<div className="flex flex-wrap gap-1 mt-0.5">
 						{devstyle && devlabel && (
 							<span
 								style={{
-									...tag,
+									...tagStyle,
 									backgroundColor: devstyle.bg,
 									color: devstyle.color,
 								}}
@@ -235,10 +177,12 @@ export function ModCard({
 						{mod.game_version && (
 							<span
 								style={{
-									...tag,
+									...tagStyle,
 									display: "inline-flex",
 									alignItems: "center",
 									gap: "3px",
+									backgroundColor: C.borderGrey,
+									color: C.metaGrey,
 								}}
 							>
 								<Cpu size={10} />
@@ -247,32 +191,40 @@ export function ModCard({
 						)}
 						{status === "installed" && (
 							<span
-								style={{ ...tag, backgroundColor: "#1e6e3e", color: "#a3e4bc" }}
+								style={{
+									...tagStyle,
+									backgroundColor: "#1e6e3e",
+									color: "#a3e4bc",
+								}}
 							>
 								{t("modCard.status_installed")}
 							</span>
 						)}
 						{status === "outdated" && (
 							<span
-								style={{ ...tag, backgroundColor: "#7a5a00", color: "#ffe08a" }}
+								style={{
+									...tagStyle,
+									backgroundColor: "#7a5a00",
+									color: "#ffe08a",
+								}}
 							>
 								{t("modCard.status_outdated")}
 							</span>
 						)}
 					</div>
 
-					{/* Category tags */}
 					{tags.length > 0 && (
-						<div
-							style={{
-								display: "flex",
-								flexWrap: "wrap",
-								gap: "4px",
-							}}
-						>
-							{tags.map((t) => (
-								<span key={t} style={tag}>
-									{t}
+						<div className="flex flex-wrap gap-1">
+							{tags.map((tag) => (
+								<span
+									key={tag}
+									style={{
+										...tagStyle,
+										backgroundColor: C.borderGrey,
+										color: C.metaGrey,
+									}}
+								>
+									{tag}
 								</span>
 							))}
 						</div>
@@ -280,22 +232,15 @@ export function ModCard({
 				</div>
 			</div>
 
-			{/* Stats bar — igual ao site */}
-			<div
+			<CardFooter
+				className="flex justify-between items-center px-3 py-1.5 flex-shrink-0 text-xs"
 				style={{
-					display: "flex",
-					justifyContent: "space-between",
-					alignItems: "center",
-					padding: "6px 12px",
 					backgroundColor: C.borderGrey,
 					boxShadow: "inset 0 2px 4px rgba(0,0,0,0.3)",
-					flexShrink: 0,
-					fontSize: "12px",
 					color: C.metaGrey,
 				}}
 			>
-				{/* Esquerda: ícone relógio + tempo */}
-				<div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+				<div className="flex items-center gap-1">
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
 						width="14"
@@ -312,11 +257,9 @@ export function ModCard({
 					</span>
 				</div>
 
-				{/* Direita: downloads + favorites + approval + botão ação */}
-				<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-					{/* Downloads */}
+				<div className="flex items-center gap-2.5">
 					{mod.downloads > 0 && (
-						<div style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+						<div className="flex items-center gap-1">
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
 								width="13"
@@ -337,9 +280,8 @@ export function ModCard({
 							<span>{mod.downloads.toLocaleString()}</span>
 						</div>
 					)}
-					{/* Favorites */}
 					{mod.favorites > 0 && (
-						<div style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+						<div className="flex items-center gap-1">
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
 								width="13"
@@ -348,14 +290,13 @@ export function ModCard({
 								fill="currentColor"
 								aria-label={t("modCard.favorites")}
 							>
-								<path d="M155.2 628.8c-2.4 0-4.8-.2-7.4-.6-15.3-2.6-28.8-12.4-36-26.1-8.3-15.9-5-31.7.1-55.5l30.5-143.9-109.2-98.5c-18.1-16.3-30-27.1-32.7-44.9-2.3-15.4 2.9-31.2 13.7-42.3 12.6-12.9 28.6-14.5 52.8-17.1l146.3-15.4 59.9-134.4 30.4 13.6-30.4-13.6c9.9-22.2 16.5-36.9 32.6-44.9 13.9-6.9 30.5-6.9 44.4 0 16.1 8 22.7 22.7 32.6 44.9l59.9 134.4L589 199.9c24.2 2.6 40.2 4.2 52.8 17.1 10.9 11.1 16 26.9 13.7 42.3-2.6 17.8-14.6 28.6-32.6 44.9l-109.3 98.5 30.5 143.9c5.1 23.8 8.4 39.6 0 55.5-7.2 13.8-20.6 23.5-36 26.1-17.7 3-31.7-5-52.8-17.2l-127.5-73.5L200.6 611c-18.1 10.5-30.9 17.8-45.4 17.8zm18.3-48.6zm-23.8-17.3zM88.9 264.7l101 91.1c5.4 4.9 10.2 9.2 14.1 16 3.5 6.1 5.7 12.8 6.4 19.8.8 7.9-.5 14.1-2 21.2l-28.2 133.1 117.8-68c6.3-3.7 11.8-6.8 19.6-8.5 6.9-1.5 13.9-1.5 20.8 0 7.8 1.7 13.3 4.8 19.6 8.5l117.8 68-28.2-133.1c-1.5-7.2-2.8-13.4-2-21.3.7-7 2.9-13.6 6.4-19.7 4-6.9 8.7-11.1 14.1-16l101.1-91.1L432 250.4c-7.3-.8-13.6-1.4-20.8-4.7-6.5-2.9-12.1-7-16.8-12.2-5.3-5.9-7.9-11.6-10.8-18.3L328.1 90.9l-55.4 124.2c-3 6.7-5.6 12.5-10.9 18.4-4.7 5.2-10.4 9.3-16.8 12.2-7.2 3.2-13.5 3.9-20.8 4.7L88.9 264.7z" />
+								<path d="M155.2 628.8c-2.4 0-4.8-.2-7.4-.6-15.3-2.6-28.8-12.4-36-26.1-8.3-15.9-5-31.7.1-55.5l30.5-143.9-109.2-98.5c-18.1-16.3-30-27.1-32.7-44.9-2.3-15.4 2.9-31.2 13.7-42.3 12.6-12.9 28.6-14.5 52.8-17.1l146.3-15.4 59.9-134.4 30.4 13.6-30.4-13.6c9.9-22.2 16.5-36.9 32.6-44.9 13.9-6.9 30.5-6.9 44.4 0 16.1 8 22.7 22.7 32.6 44.9l59.9 134.4L589 199.9c24.2 2.6 40.2 4.2 52.8 17.1 10.9 11.1 16 26.9 13.7 42.3-2.6 17.8-14.6 28.6-32.6 44.9l-109.3 98.5 30.5 143.9c5.1 23.8 8.4 39.6 0 55.5-7.2 13.8-20.6 23.5-36 26.1-17.7 3-31.7-5-52.8-17.2l-127.5-73.5L200.6 611c-18.1 10.5-30.9 17.8-45.4 17.8z" />
 							</svg>
 							<span>{mod.favorites}</span>
 						</div>
 					)}
-					{/* Approval % */}
 					{mod.approval_pct >= 0 && (
-						<div style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+						<div className="flex items-center gap-1">
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
 								width="13"
@@ -369,7 +310,6 @@ export function ModCard({
 							<span>{mod.approval_pct}%</span>
 						</div>
 					)}
-					{/* Botão de ação — separador visual */}
 					{(status === "installed" ||
 						status === "outdated" ||
 						status === "not_installed") && (
@@ -384,12 +324,8 @@ export function ModCard({
 					)}
 					{status === "installed" && (
 						<div
-							style={{
-								display: "flex",
-								alignItems: "center",
-								gap: "4px",
-								color: "#a3e4bc",
-							}}
+							className="flex items-center gap-1"
+							style={{ color: "#a3e4bc" }}
 						>
 							<CheckCircle size={13} />
 						</div>
@@ -410,14 +346,8 @@ export function ModCard({
 					)}
 					{installing && (
 						<div
-							style={{
-								display: "flex",
-								alignItems: "center",
-								gap: "4px",
-								color: C.yellow,
-								fontSize: "11px",
-								fontWeight: 600,
-							}}
+							className="flex items-center gap-1 text-[11px] font-semibold"
+							style={{ color: C.yellow }}
 						>
 							<Loader2
 								size={11}
@@ -457,7 +387,7 @@ export function ModCard({
 						</Button>
 					)}
 				</div>
-			</div>
-		</div>
+			</CardFooter>
+		</Card>
 	);
 }

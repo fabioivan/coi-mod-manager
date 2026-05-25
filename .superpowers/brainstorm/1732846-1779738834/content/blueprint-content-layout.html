@@ -1,0 +1,154 @@
+<style>
+  .app-shell { background: #1a1a1a; border-radius: 8px; overflow: hidden; font-family: system-ui,sans-serif; border: 1px solid #333; }
+  .app-topbar { background: #2f2f2f; padding: 7px 12px; display: flex; align-items: center; gap: 6px; border-bottom: 1px solid #222; font-size: 11px; }
+  .logo { font-weight: 700; color: #e5ca5f; }
+  .sp { flex: 1; }
+  .btn { background: #414141; color: #c6c6c6; font-size: 9px; padding: 2px 6px; border-radius: 3px; }
+  .app-body { display: flex; height: 160px; }
+  .app-status { background: #1e1e1e; padding: 3px 12px; border-top: 1px solid #222; font-size: 9px; color: #666; }
+
+  .nav-side { width: 44px; background: #1e1e1e; display: flex; flex-direction: column; align-items: center; padding: 6px 0; gap: 3px; border-right: 1px solid #2a2a2a; flex-shrink: 0; }
+  .nav-icon { width: 34px; height: 34px; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 5px; color: #888; font-size: 8px; gap: 1px; border: 1px solid transparent; }
+  .nav-icon.active { background: #2a2a2a; color: #7ed3f6; border-color: #444; }
+  .nav-icon .ico { font-size: 12px; }
+
+  .toolbar { background: #252525; padding: 5px 8px; display: flex; align-items: center; gap: 6px; border-bottom: 1px solid #222; flex-shrink: 0; }
+  .search-box { background: #333; border: 1px solid #444; border-radius: 3px; padding: 2px 6px; font-size: 9px; color: #bbb; flex: 1; max-width: 120px; }
+  .sort-box { background: #333; border: 1px solid #444; border-radius: 3px; padding: 2px 6px; font-size: 9px; color: #bbb; }
+  .count { font-size: 9px; color: #666; margin-left: auto; }
+
+  /* Layout A: grid 3 colunas fixas */
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; padding: 6px; overflow-y: auto; flex: 1; }
+  .bp-card { background: #2d2d2d; border-radius: 4px; overflow: hidden; border: 1px solid #333; }
+  .bp-thumb { height: 36px; background: linear-gradient(135deg, #3a3a3a, #444); display: flex; align-items: center; justify-content: center; font-size: 9px; color: #555; }
+  .bp-info { padding: 4px 5px; }
+  .bp-name { font-size: 8px; color: #ccc; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bp-meta { font-size: 7px; color: #666; margin-top: 1px; }
+
+  /* Layout B: lista com preview lateral (como Mods) */
+  .list-bp { display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-bottom: 1px solid #222; }
+  .list-thumb { width: 40px; height: 30px; background: linear-gradient(135deg, #3a3a3a, #444); border-radius: 3px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 8px; color: #555; }
+  .list-info { flex: 1; min-width: 0; }
+  .list-name { font-size: 9px; color: #ccc; font-weight: 600; }
+  .list-meta { font-size: 8px; color: #666; }
+  .list-badge { font-size: 7px; background: #333; color: #888; padding: 1px 4px; border-radius: 2px; margin-left: auto; flex-shrink: 0; }
+
+  /* Layout C: grid maior (2 cols) com mais info */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; padding: 6px; overflow-y: auto; flex: 1; }
+  .bp-card-lg { background: #2d2d2d; border-radius: 4px; overflow: hidden; border: 1px solid #333; display: flex; gap: 0; }
+  .bp-thumb-lg { width: 48px; background: linear-gradient(135deg, #3a3a3a, #444); display: flex; align-items: center; justify-content: center; font-size: 10px; color: #555; flex-shrink: 0; }
+  .bp-body-lg { padding: 4px 6px; min-width: 0; }
+  .bp-name-lg { font-size: 8px; color: #ccc; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bp-author-lg { font-size: 7px; color: #666; }
+  .bp-stats-lg { font-size: 7px; color: #888; margin-top: 2px; }
+
+  .main-col { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+</style>
+
+<h2>Como deve ser a lista de Blueprints?</h2>
+<p class="subtitle">Comparação de três layouts para o conteúdo principal da aba</p>
+
+<div class="cards" style="margin-top:1rem">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:0">
+      <div class="app-shell">
+        <div class="app-topbar"><span class="logo">⚙</span><span class="sp"></span><span class="btn">Sync</span></div>
+        <div class="app-body">
+          <div class="nav-side">
+            <div class="nav-icon active"><span class="ico">📐</span><span>BPs</span></div>
+            <div class="nav-icon"><span class="ico">🧩</span><span>Mods</span></div>
+            <div class="nav-icon"><span class="ico">⚙</span><span>Set</span></div>
+          </div>
+          <div class="main-col">
+            <div class="toolbar">
+              <div class="search-box">🔍 buscar...</div>
+              <div class="sort-box">Recentes ▾</div>
+              <span class="count">142 BPs</span>
+            </div>
+            <div class="grid-3">
+              <div class="bp-card"><div class="bp-thumb">🖼</div><div class="bp-info"><div class="bp-name">Factory Alpha</div><div class="bp-meta">↓ 1.2k • 2h atrás</div></div></div>
+              <div class="bp-card"><div class="bp-thumb">🖼</div><div class="bp-info"><div class="bp-name">Rail Network</div><div class="bp-meta">↓ 890 • 5h atrás</div></div></div>
+              <div class="bp-card"><div class="bp-thumb">🖼</div><div class="bp-info"><div class="bp-name">Power Grid</div><div class="bp-meta">↓ 654 • 1d atrás</div></div></div>
+              <div class="bp-card"><div class="bp-thumb">🖼</div><div class="bp-info"><div class="bp-name">Starter Base</div><div class="bp-meta">↓ 321 • 3d atrás</div></div></div>
+              <div class="bp-card"><div class="bp-thumb">🖼</div><div class="bp-info"><div class="bp-name">Ore Smelter</div><div class="bp-meta">↓ 210 • 1w atrás</div></div></div>
+              <div class="bp-card"><div class="bp-thumb">🖼</div><div class="bp-info"><div class="bp-name">City Layout</div><div class="bp-meta">↓ 180 • 1w atrás</div></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="app-status">142 blueprints</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Grade 3 colunas fixa (atual melhorado)</h3>
+      <p>Grid com 3 colunas fixas no desktop. Mais visual, bom para thumbnails. Mantém o estilo atual, mas consistente.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:0">
+      <div class="app-shell">
+        <div class="app-topbar"><span class="logo">⚙</span><span class="sp"></span><span class="btn">Sync</span></div>
+        <div class="app-body">
+          <div class="nav-side">
+            <div class="nav-icon active"><span class="ico">📐</span><span>BPs</span></div>
+            <div class="nav-icon"><span class="ico">🧩</span><span>Mods</span></div>
+            <div class="nav-icon"><span class="ico">⚙</span><span>Set</span></div>
+          </div>
+          <div class="main-col">
+            <div class="toolbar">
+              <div class="search-box">🔍 buscar...</div>
+              <div class="sort-box">Recentes ▾</div>
+              <span class="count">142 BPs</span>
+            </div>
+            <div style="flex:1;overflow-y:auto">
+              <div class="list-bp"><div class="list-thumb">🖼</div><div class="list-info"><div class="list-name">Factory Alpha</div><div class="list-meta">por Builder_X • 2h atrás</div></div><div class="list-badge">↓ 1.2k</div></div>
+              <div class="list-bp"><div class="list-thumb">🖼</div><div class="list-info"><div class="list-name">Rail Network v3</div><div class="list-meta">por RailGuy • 5h atrás</div></div><div class="list-badge">↓ 890</div></div>
+              <div class="list-bp"><div class="list-thumb">🖼</div><div class="list-info"><div class="list-name">Power Grid Setup</div><div class="list-meta">por ElectroPro • 1d atrás</div></div><div class="list-badge">↓ 654</div></div>
+              <div class="list-bp"><div class="list-thumb">🖼</div><div class="list-info"><div class="list-name">Starter Base</div><div class="list-meta">por Newbie99 • 3d atrás</div></div><div class="list-badge">↓ 321</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="app-status">142 blueprints</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Lista (igual aos Mods)</h3>
+      <p>Rows horizontais com thumbnail, nome, autor, stats. Totalmente consistente com a aba Mods.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:0">
+      <div class="app-shell">
+        <div class="app-topbar"><span class="logo">⚙</span><span class="sp"></span><span class="btn">Sync</span></div>
+        <div class="app-body">
+          <div class="nav-side">
+            <div class="nav-icon active"><span class="ico">📐</span><span>BPs</span></div>
+            <div class="nav-icon"><span class="ico">🧩</span><span>Mods</span></div>
+            <div class="nav-icon"><span class="ico">⚙</span><span>Set</span></div>
+          </div>
+          <div class="main-col">
+            <div class="toolbar">
+              <div class="search-box">🔍 buscar...</div>
+              <div class="sort-box">Recentes ▾</div>
+              <span class="count">142 BPs</span>
+            </div>
+            <div class="grid-2">
+              <div class="bp-card-lg"><div class="bp-thumb-lg">🖼</div><div class="bp-body-lg"><div class="bp-name-lg">Factory Alpha</div><div class="bp-author-lg">por Builder_X</div><div class="bp-stats-lg">↓ 1.2k  ♥ 45  👍 98%</div></div></div>
+              <div class="bp-card-lg"><div class="bp-thumb-lg">🖼</div><div class="bp-body-lg"><div class="bp-name-lg">Rail Network v3</div><div class="bp-author-lg">por RailGuy</div><div class="bp-stats-lg">↓ 890  ♥ 32  👍 95%</div></div></div>
+              <div class="bp-card-lg"><div class="bp-thumb-lg">🖼</div><div class="bp-body-lg"><div class="bp-name-lg">Power Grid</div><div class="bp-author-lg">por ElectroPro</div><div class="bp-stats-lg">↓ 654  ♥ 21  👍 91%</div></div></div>
+              <div class="bp-card-lg"><div class="bp-thumb-lg">🖼</div><div class="bp-body-lg"><div class="bp-name-lg">Starter Base</div><div class="bp-author-lg">por Newbie99</div><div class="bp-stats-lg">↓ 321  ♥ 10  👍 88%</div></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="app-status">142 blueprints</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Grade 2 colunas horizontal (card largo)</h3>
+      <p>Cards horizontais em 2 colunas — thumbnail + info ao lado. Equilíbrio entre visual e densidade de informação.</p>
+    </div>
+  </div>
+
+</div>
