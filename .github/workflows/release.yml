@@ -14,9 +14,9 @@ jobs:
       matrix:
         include:
           - platform: ubuntu-22.04
-            args: ""
+            args: "--bundles deb,appimage"
           - platform: windows-latest
-            args: ""
+            args: "--bundles nsis,msi,portable"
 
     runs-on: ${{ matrix.platform }}
 
@@ -51,25 +51,30 @@ jobs:
         run: npm ci
 
       - name: Build and release
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
+          args: ${{ matrix.args }}
           tagName: ${{ github.ref_name }}
           releaseName: "CoI Mod Manager ${{ github.ref_name }}"
           releaseBody: |
             ## 🎮 CoI Mod Manager ${{ github.ref_name }}
 
             ### ✨ What's New
-            - **Game version detection**: automatically detects your installed game version from `changelog.txt` — no more manual guessing
-            - **Version compatibility warning**: warns before installing a mod that doesn't match your game version
-            - **Expanded version filter**: version ranges (e.g. "0.8.2 – 0.8.5") are expanded into individual versions for easier filtering, sorted newest-first
-            - **Status bar**: shows your game version, total Mods folder size, and installed mod count at the bottom of the app
-            - **Default language** changed to English
-            - **Chinese (Simplified)** translation added
+            - **Safety**: mod directory deletion now checks for `manifest.json` — prevents accidental deletion of savegames, settings, or source code
+            - **Per‑profile config backup**: each profile keeps its own mod config files, preserved when switching profiles
+            - **Portable build** (.exe): run from any folder, no installation or admin required
+            - **NSIS installer no longer requires admin**: installs to `%LOCALAPPDATA%` instead of `Program Files`
+            - **Changelog viewer**: click the app version in the status bar to see the full release history
+            - **Update notification**: icon appears in the status bar when a new version is available, with release notes and "Update Now"
+            - **Browse for game folder**: manually point to your game directory when auto-detection fails
+            - **"Check for Updates" button** in Settings
+            - **Fixed false "update available"**: version comparison now handles `v` prefix mismatches correctly
+            - **Fixed hardcoded Portuguese** on mod detail page — `game_version_title` now uses the selected language
 
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           includeUpdaterJson: true

@@ -2,16 +2,18 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ChangelogModal } from "@/components/ChangelogModal";
 import { Sidebar } from "@/components/Sidebar";
 import { StatusBar } from "@/components/StatusBar";
 import { TopBar } from "@/components/TopBar";
+import { UpdateModal } from "@/components/UpdateModal";
 import { Toaster } from "@/components/ui/toaster";
 import { useToast } from "@/hooks/use-toast";
 import { ModDetail } from "@/pages/ModDetail";
 import { ModList } from "@/pages/ModList";
 import { Settings } from "@/pages/Settings";
 import { type SidebarFilters, SORT_OPTIONS } from "@/types/filters";
-import type { Mod } from "@/types/mod";
+import { getModStatus, type Mod } from "@/types/mod";
 import type { Profile } from "@/types/profile";
 import {
 	compareVersions,
@@ -69,9 +71,12 @@ export default function App() {
 		version: string;
 		notes?: string;
 	} | null>(null);
+	const [showUpdateModal, setShowUpdateModal] = useState(false);
+	const [showChangelog, setShowChangelog] = useState(false);
 	const [activeProfile, setActiveProfile] = useState<Profile | null>(null);
 	const [savedGameVersion, setSavedGameVersion] = useState<string | null>(null);
 	const [changelogVersion, setChangelogVersion] = useState<string | null>(null);
+	const [appVersion, setAppVersion] = useState("");
 
 	const [filters, setFilters] = useState<SidebarFilters>({
 		sortBy: "updated",
@@ -130,6 +135,10 @@ export default function App() {
 					setChangelogVersion(cv);
 				}
 			} catch (_) {}
+
+			invoke<string>("get_app_version")
+				.then(setAppVersion)
+				.catch(() => {});
 
 			await loadProfiles();
 
@@ -353,10 +362,7 @@ export default function App() {
 	}, [savedGameVersion, gameVersionSet]);
 
 	const outdatedCount = useMemo(
-		() =>
-			mods.filter(
-				(m) => m.is_installed && m.version_installed !== m.version_available,
-			).length,
+		() => mods.filter((m) => getModStatus(m) === "outdated").length,
 		[mods],
 	);
 
@@ -462,7 +468,21 @@ export default function App() {
 			<StatusBar
 				installedCount={installedCount}
 				gameVersion={changelogVersion ?? savedGameVersion}
+				appUpdate={appUpdate}
+				onUpdateClick={() => setShowUpdateModal(true)}
+				onChangelogClick={() => setShowChangelog(true)}
 			/>
+			{showUpdateModal && appUpdate && (
+				<UpdateModal
+					version={appUpdate.version}
+					notes={appUpdate.notes}
+					currentVersion={appVersion}
+					onClose={() => setShowUpdateModal(false)}
+				/>
+			)}
+			{showChangelog && (
+				<ChangelogModal onClose={() => setShowChangelog(false)} />
+			)}
 		</div>
 	);
 }

@@ -49,14 +49,17 @@ export function Settings({ activeProfile, onProfilesChanged }: SettingsProps) {
 	const [detectMsg, setDetectMsg] = useState<string | null>(null);
 	const [scanMsg, setScanMsg] = useState<string | null>(null);
 	const [os, setOs] = useState<string>("");
-	const [language, setLanguage] = useState("pt-BR");
+	const [language, setLanguage] = useState(i18n.language);
 	const [autoUpdateEnabled, setAutoUpdateEnabled] = useState(true);
 	const [gameVersion, setGameVersion] = useState("");
 	const [gameVersionSaved, setGameVersionSaved] = useState(false);
 	const [detectingVersion, setDetectingVersion] = useState(false);
 	const [gameVersionMsg, setGameVersionMsg] = useState<string | null>(null);
+	const [gameInstallPath, setGameInstallPath] = useState("");
 	const [profiles, setProfiles] = useState<Profile[]>([]);
 	const [importing, setImporting] = useState(false);
+	const [checkingUpdate, setCheckingUpdate] = useState(false);
+	const [updateMsg, setUpdateMsg] = useState<string | null>(null);
 
 	async function loadProfiles() {
 		try {
@@ -153,6 +156,27 @@ export function Settings({ activeProfile, onProfilesChanged }: SettingsProps) {
 		});
 	}
 
+	async function handleCheckUpdate() {
+		setCheckingUpdate(true);
+		setUpdateMsg(null);
+		try {
+			const result = await invoke<{ version: string; notes?: string } | null>(
+				"check_for_update",
+			);
+			if (result) {
+				setUpdateMsg(
+					t("settings.update_available", { version: result.version }),
+				);
+			} else {
+				setUpdateMsg(t("settings.up_to_date"));
+			}
+		} catch (_) {
+			setUpdateMsg(t("settings.update_error"));
+		} finally {
+			setCheckingUpdate(false);
+		}
+	}
+
 	async function handleDetectGameVersion() {
 		setDetectingVersion(true);
 		setGameVersionMsg(null);
@@ -168,6 +192,23 @@ export function Settings({ activeProfile, onProfilesChanged }: SettingsProps) {
 			setGameVersionMsg(t("settings.version_not_found"));
 		} finally {
 			setDetectingVersion(false);
+		}
+	}
+
+	async function handleBrowseGameVersion() {
+		const folder = await invoke<string | null>("pick_folder");
+		if (folder) {
+			setGameInstallPath(folder);
+			const result = await invoke<string | null>(
+				"detect_game_version_from_path",
+				{ path: folder },
+			);
+			if (result) {
+				setGameVersion(result);
+				setGameVersionMsg(t("settings.version_found"));
+			} else {
+				setGameVersionMsg(t("settings.version_not_found"));
+			}
 		}
 	}
 
@@ -343,6 +384,44 @@ export function Settings({ activeProfile, onProfilesChanged }: SettingsProps) {
 					/>
 					{t("settings.auto_update_enabled")}
 				</label>
+
+				<div
+					style={{
+						display: "flex",
+						gap: "8px",
+						alignItems: "center",
+						marginTop: "14px",
+					}}
+				>
+					<Button
+						onClick={handleCheckUpdate}
+						disabled={checkingUpdate}
+						variant="outline"
+						size="sm"
+						style={{ padding: "6px 14px", height: "auto" }}
+						className="border-[#414141] text-[#c6c6c6] hover:bg-[#414141] text-[11px] font-semibold uppercase"
+					>
+						<Download size={11} />
+						{checkingUpdate
+							? t("settings.checking_update")
+							: t("settings.check_update")}
+					</Button>
+					{updateMsg && (
+						<span
+							style={{
+								fontSize: "11px",
+								color:
+									updateMsg.includes("available") ||
+									updateMsg.includes("disponível") ||
+									updateMsg.includes("发现")
+										? "#81c784"
+										: "#e57373",
+							}}
+						>
+							{updateMsg}
+						</span>
+					)}
+				</div>
 			</div>
 
 			{/* Game Version section */}
@@ -410,6 +489,41 @@ export function Settings({ activeProfile, onProfilesChanged }: SettingsProps) {
 					>
 						<Search size={11} />
 						{detectingVersion ? t("common.detecting") : t("settings.detect")}
+					</Button>
+				</div>
+
+				<div
+					style={{
+						display: "flex",
+						gap: "6px",
+						marginBottom: "10px",
+					}}
+				>
+					<input
+						type="text"
+						value={gameInstallPath}
+						onChange={(e) => setGameInstallPath(e.target.value)}
+						placeholder={t("settings.game_folder_placeholder")}
+						style={{
+							flex: 1,
+							padding: "6px 10px",
+							fontSize: "12px",
+							backgroundColor: C.grey,
+							border: `1px solid ${C.borderGrey}`,
+							borderRadius: "4px",
+							color: C.white,
+							outline: "none",
+						}}
+					/>
+					<Button
+						onClick={handleBrowseGameVersion}
+						variant="outline"
+						size="sm"
+						style={{ padding: "6px 14px", height: "auto" }}
+						className="border-[#414141] text-[#c6c6c6] hover:bg-[#414141] text-[11px] font-semibold uppercase"
+					>
+						<FolderOpen size={13} />
+						{t("settings.browse")}
 					</Button>
 				</div>
 

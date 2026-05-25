@@ -1,6 +1,6 @@
 [package]
 name = "coi-mod-manager"
-version = "0.1.0"
+version = "0.3.2"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
@@ -33,4 +33,5 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 tokio = { version = "1", features = ["sync"] }
 chrono = "0.4"
 base64 = "0.22"
+pulldown-cmark = "0.13"
 

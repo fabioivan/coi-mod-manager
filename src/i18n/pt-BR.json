@@ -50,9 +50,15 @@
 		"auto_update": "Atualização Automática do App",
 		"auto_update_desc": "Verifica e instala automaticamente novas versões do aplicativo em segundo plano.",
 		"auto_update_enabled": "Ativar atualização automática",
+		"check_update": "Verificar Atualizações",
+		"checking_update": "Verificando...",
+		"update_available": "Atualização {{version}} disponível!",
+		"up_to_date": "Você está atualizado!",
+		"update_error": "Falha ao verificar atualizações.",
 		"game_version": "Versão do Jogo",
 		"game_version_desc": "Informe a versão do Captain of Industry que você está usando. Isso permite filtrar mods compatíveis e baixar a versão correta automaticamente.",
 		"game_version_placeholder": "Ex: 0.8.4",
+		"game_folder_placeholder": "Caminho da pasta de instalação do jogo...",
 		"version_found": "Jogo encontrado! Informe a versão abaixo.",
 		"version_not_found": "Não foi possível detectar. Informe a versão manualmente."
 	},
@@ -66,6 +72,7 @@
 	"modCard": {
 		"by_author": "por {{author}}",
 		"game_version": "Jogo v{{version}}",
+		"game_version_title": "Versões do Jogo",
 		"status_installed": "Instalado",
 		"status_outdated": "Atualização disponível",
 		"status_not_installed": "Não instalado",
@@ -153,6 +160,16 @@
 		"status_outdated": "Atualização Disponível (Instalado: v{{installed}})",
 		"status_not_installed": "Não Instalado"
 	},
+	"updateModal": {
+		"title": "Atualização Disponível",
+		"new_version": "Nova versão:",
+		"current_version": "Versão atual:",
+		"notes": "Notas de Versão",
+		"no_notes": "Nenhuma nota de versão fornecida.",
+		"btn_update": "Atualizar Agora",
+		"btn_close": "Fechar",
+		"checking": "Verificando..."
+	},
 	"toast": {
 		"update_available": "Nova versão {{version}} disponível! Baixando e instalando...",
 		"update_installed": "Versão {{version}} instalada! Reinicie o aplicativo.",
@@ -199,7 +216,9 @@
 	"statusBar": {
 		"game_version": "Jogo",
 		"folder_size": "Pasta Mods",
-		"installed": "Instalados"
+		"installed": "Instalados",
+		"app_version": "v{{version}}",
+		"update_available": "Atualização disponível"
 	},
 	"error": {
 		"mods_folder_not_configured": "Pasta de mods não configurada. Acesse Configurações.",

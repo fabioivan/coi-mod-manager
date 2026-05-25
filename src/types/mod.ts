@@ -21,9 +21,13 @@ export interface Mod {
 
 export type ModStatus = "installed" | "not_installed" | "outdated";
 
+import { compareVersions } from "@/utils/version";
+
 export function getModStatus(mod: Mod): ModStatus {
 	if (!mod.is_installed) return "not_installed";
-	if (mod.version_installed !== mod.version_available) return "outdated";
+	if (mod.version_installed == null) return "outdated";
+	if (compareVersions(mod.version_installed, mod.version_available) !== 0)
+		return "outdated";
 	return "installed";
 }
 

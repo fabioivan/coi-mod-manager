@@ -50,9 +50,15 @@
 		"auto_update": "Automatic App Updates",
 		"auto_update_desc": "Automatically check and install new app versions in the background.",
 		"auto_update_enabled": "Enable automatic updates",
+		"check_update": "Check for Updates",
+		"checking_update": "Checking...",
+		"update_available": "Update {{version}} available!",
+		"up_to_date": "You're up to date!",
+		"update_error": "Failed to check for updates.",
 		"game_version": "Game Version",
 		"game_version_desc": "Enter the Captain of Industry version you're running. This allows filtering compatible mods and auto-selecting the correct version on install.",
 		"game_version_placeholder": "e.g. 0.8.4",
+		"game_folder_placeholder": "Game install folder path...",
 		"version_found": "Game found! Enter your version below.",
 		"version_not_found": "Could not detect game. Enter your version manually."
 	},
@@ -66,6 +72,7 @@
 	"modCard": {
 		"by_author": "by {{author}}",
 		"game_version": "Game v{{version}}",
+		"game_version_title": "Game Versions",
 		"status_installed": "Installed",
 		"status_outdated": "Update available",
 		"status_not_installed": "Not installed",
@@ -153,6 +160,16 @@
 		"status_outdated": "Update available (Installed: v{{installed}})",
 		"status_not_installed": "Not Installed"
 	},
+	"updateModal": {
+		"title": "Update Available",
+		"new_version": "New version:",
+		"current_version": "Current version:",
+		"notes": "Release Notes",
+		"no_notes": "No release notes provided.",
+		"btn_update": "Update Now",
+		"btn_close": "Close",
+		"checking": "Checking..."
+	},
 	"toast": {
 		"update_available": "New version {{version}} available! Downloading and installing...",
 		"update_installed": "Version {{version}} installed! Restart the application.",
@@ -199,7 +216,9 @@
 	"statusBar": {
 		"game_version": "Game",
 		"folder_size": "Mods folder",
-		"installed": "Installed"
+		"installed": "Installed",
+		"app_version": "v{{version}}",
+		"update_available": "Update available"
 	},
 	"error": {
 		"mods_folder_not_configured": "Mods folder not configured. Go to Settings.",

@@ -99,6 +99,20 @@ pub async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+pub fn get_app_version(app: tauri::AppHandle) -> Result<String, String> {
+    Ok(app.config().version.clone().unwrap_or_else(|| "0.0.0".to_string()))
+}
+
+#[tauri::command]
+pub fn get_changelog() -> Result<String, String> {
+    let md = include_str!("../../CHANGELOG.md");
+    let parser = pulldown_cmark::Parser::new(md);
+    let mut html = String::new();
+    pulldown_cmark::html::push_html(&mut html, parser);
+    Ok(html)
+}
+
 // ─── Profile Commands ───
 
 #[tauri::command]
@@ -163,20 +177,32 @@ pub async fn switch_profile(
         .map_err(|e| e.to_string())?
         .ok_or("Mods folder not configured. Go to Settings.")?;
 
+    let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+
     let active_id = db.get_active_profile_id().await.map_err(|e| e.to_string())?;
 
-    // Remove symlinks from current active profile
+    // Remove symlinks from current active profile, saving per-profile configs
     if let Some(ref current_id) = active_id {
         let current_mods = db.get_profile_mods(current_id).await.map_err(|e| e.to_string())?;
         for pm in &current_mods {
             if let Some(ref fname) = pm.folder_name {
                 let link = std::path::Path::new(&folder).join(fname);
+
+                // Save this profile's mod configs persistently so they
+                // are restored when the user switches back to this profile.
+                if link.is_dir() && !link.is_symlink() {
+                    let profile_dir = data_dir.join("profile_configs")
+                        .join(current_id).join(fname);
+                    let _ = std::fs::remove_dir_all(&profile_dir);
+                    let _ = copy_dir_all(&link, &profile_dir);
+                }
+
                 let _ = remove_any(&link);
             }
         }
     }
 
-    // Create symlinks (or copies) for target profile
+    // Create symlinks (or copies) for target profile, restoring its configs
     let target_mods = db.get_profile_mods(&profile_id).await.map_err(|e| e.to_string())?;
     for pm in &target_mods {
         if let Some(ref pool_path) = pm.pool_path {
@@ -186,6 +212,17 @@ pub async fn switch_profile(
                     let link = std::path::Path::new(&folder).join(fname);
                     let _ = remove_any(&link);
                     create_symlink_or_copy(pool_dir, &link)?;
+
+                    // Restore this profile's saved configs from a previous
+                    // session. copy_extra_files only copies files that exist
+                    // in the backup but NOT in the freshly copied mod dir,
+                    // so mod distribution files are replaced while user
+                    // configs (settings, saves, etc.) are preserved.
+                    let profile_dir = data_dir.join("profile_configs")
+                        .join(&profile_id).join(fname);
+                    if profile_dir.exists() {
+                        let _ = copy_extra_files(&profile_dir, &link);
+                    }
                 }
             }
         }
@@ -329,6 +366,12 @@ fn remove_any(path: &std::path::Path) -> std::io::Result<()> {
     } else if path.is_file() {
         std::fs::remove_file(path)
     } else if path.is_dir() {
+        if !is_mod_directory(path) {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Not a valid mod directory: {}", path.display()),
+            ));
+        }
         std::fs::remove_dir_all(path)
     } else {
         Ok(())
@@ -371,6 +414,21 @@ fn create_symlink_or_copy(target: &std::path::Path, link: &std::path::Path) -> R
     }
 }
 
+/// Check if a directory is a valid mod directory (contains manifest.json).
+fn is_mod_directory(path: &std::path::Path) -> bool {
+    if path.join("manifest.json").exists() {
+        return true;
+    }
+    if let Ok(entries) = std::fs::read_dir(path) {
+        for entry in entries.flatten() {
+            if entry.path().is_dir() && entry.path().join("manifest.json").exists() {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 fn remove_symlink(link: &std::path::Path) -> Result<(), String> {
     if link.is_symlink() {
         // On Windows, directory symlinks require remove_dir, not remove_file.
@@ -387,7 +445,13 @@ fn remove_symlink(link: &std::path::Path) -> Result<(), String> {
             std::fs::remove_file(link).map_err(|e| e.to_string())
         }
     } else if link.is_dir() {
-        // Was installed via copy fallback — remove the whole directory.
+        // Was installed via copy fallback — only delete if it's a valid mod directory.
+        if !is_mod_directory(link) {
+            return Err(format!(
+                "Refusing to delete '{}': not a valid mod directory (manifest.json not found)",
+                link.display()
+            ));
+        }
         std::fs::remove_dir_all(link).map_err(|e| e.to_string())
     } else if link.exists() {
         std::fs::remove_file(link).map_err(|e| e.to_string())
@@ -562,6 +626,15 @@ pub async fn detect_game_version() -> Result<Option<String>, String> {
 		return Ok(Some(version));
 	}
 	Ok(None)
+}
+
+#[tauri::command]
+pub async fn detect_game_version_from_path(path: String) -> Result<Option<String>, String> {
+	let p = std::path::Path::new(&path);
+	if !p.exists() {
+		return Ok(None);
+	}
+	Ok(read_version_from_changelog(p))
 }
 
 fn find_mods_folder() -> Option<String> {
@@ -783,6 +856,23 @@ async fn extract_to_pool(
     Ok((folder_name, version_dir))
 }
 
+/// Remove old pool version directories for a given mod, keeping only the current version.
+fn cleanup_old_pool_versions(pool_base: &std::path::Path, mod_id: &str, current_version: &str) {
+    let prefix = format!("{}-", mod_id);
+    let current_dir_name = format!("{}-{}", mod_id, current_version);
+    if let Ok(entries) = std::fs::read_dir(pool_base) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_dir() { continue; }
+            let dir_name = entry.file_name();
+            let name = dir_name.to_string_lossy();
+            if name.starts_with(&prefix) && name.as_ref() != current_dir_name {
+                let _ = std::fs::remove_dir_all(&path);
+            }
+        }
+    }
+}
+
 async fn get_active_profile_id(db: &Database) -> Result<String, String> {
     db.get_active_profile_id().await
         .map_err(|e| e.to_string())?
@@ -826,6 +916,11 @@ pub async fn update_all_mods(
             &profile_id, mod_id, &mod_entry.version_available,
             Some(pool_dir.to_str().unwrap_or("")), Some(&folder_name),
         ).await.map_err(|e| e.to_string())?;
+
+        // Clean up old version pool directories
+        if let Some(pool_base) = pool_dir.parent() {
+            cleanup_old_pool_versions(pool_base, mod_id, &mod_entry.version_available);
+        }
     }
 
     if count > 0 {
@@ -917,6 +1012,11 @@ pub async fn update_mod(
         Some(pool_dir.to_str().unwrap_or("")), Some(&folder_name),
     ).await.map_err(|e| e.to_string())?;
 
+    // Clean up old version pool directories
+    if let Some(pool_base) = pool_dir.parent() {
+        cleanup_old_pool_versions(pool_base, &mod_id, target_version);
+    }
+
     db.update_is_installed_from_profile(&profile_id).await.map_err(|e| e.to_string())?;
     let _ = app.emit("mods-updated", ());
     Ok(())
@@ -939,6 +1039,9 @@ pub async fn uninstall_mod(
         .ok_or_else(|| format!("Mod id={} not found in active profile", mod_id))?;
 
     if let Some(ref fname) = pm.folder_name {
+        if fname.is_empty() {
+            return Err("Cannot uninstall: mod folder name is empty".to_string());
+        }
         let link = std::path::Path::new(&folder).join(fname);
         remove_symlink(&link)?;
     }
@@ -1023,7 +1126,7 @@ pub async fn scan_installed_mods(
         let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&manifest_str) else { continue; };
         let manifest_id = manifest["id"].as_str().unwrap_or("").to_lowercase();
         let display_name = manifest["display_name"].as_str().unwrap_or("").to_lowercase();
-        let version = manifest["version"].as_str().unwrap_or("").to_string();
+        let version = manifest["version"].as_str().unwrap_or("").trim().trim_start_matches('v').to_string();
 
         let matched = all_mods.iter().find(|m| {
             let slug = m.url.split('/').last().unwrap_or("").to_lowercase();
@@ -1093,7 +1196,7 @@ pub async fn run_scan_installed(app: &tauri::AppHandle) {
         let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&manifest_str) else { continue; };
         let manifest_id = manifest["id"].as_str().unwrap_or("").to_lowercase();
         let display_name = manifest["display_name"].as_str().unwrap_or("").to_lowercase();
-        let version = manifest["version"].as_str().unwrap_or("").to_string();
+        let version = manifest["version"].as_str().unwrap_or("").trim().trim_start_matches('v').to_string();
 
         let matched = all_mods.iter().find(|m| {
             let slug = m.url.split('/').last().unwrap_or("").to_lowercase();

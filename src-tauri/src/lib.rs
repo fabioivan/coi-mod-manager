@@ -5,9 +5,11 @@ mod scraper;
 
 use commands::{
     get_mods, install_mod, uninstall_mod, run_scrape, sync_mods, update_all_mods, update_mod,
-    get_setting, set_setting, detect_mods_folder, detect_game_version, pick_folder,
+    get_setting, set_setting, detect_mods_folder, detect_game_version,
+    detect_game_version_from_path, pick_folder,
     scan_installed_mods, run_scan_installed,
     check_for_update, install_update, check_app_update_on_startup, get_mod_details,
+    get_app_version, get_changelog,
     get_profiles, create_profile, rename_profile, delete_profile,
     set_default_profile, get_active_profile, switch_profile,
     export_profile, import_profile, get_mods_folder_size,
@@ -75,6 +77,7 @@ pub fn run() {
             set_setting,
             detect_mods_folder,
             detect_game_version,
+            detect_game_version_from_path,
             pick_folder,
             scan_installed_mods,
             check_for_update,
@@ -90,6 +93,8 @@ pub fn run() {
             export_profile,
             import_profile,
             get_mods_folder_size,
+            get_app_version,
+            get_changelog,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

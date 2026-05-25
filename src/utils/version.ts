@@ -6,7 +6,7 @@ export interface ParsedVersion {
 }
 
 export function parseVersion(v: string): ParsedVersion | null {
-	const m = v.trim().match(/^(\d+)\.(\d+)\.(\d+)([a-z]*)$/);
+	const m = v.trim().match(/^v?(\d+)\.(\d+)\.(\d+)([a-z]*)$/i);
 	if (!m) return null;
 	return {
 		major: parseInt(m[1], 10),
