@@ -1,5 +1,5 @@
-use scraper::{Html, Selector};
 use crate::models::Mod;
+use scraper::{Html, Selector};
 
 const BASE_URL: &str = "https://hub.coigame.com";
 
@@ -14,19 +14,22 @@ pub async fn scrape_all(
     let html = client
         .get(format!("{}/Mods/Search", BASE_URL))
         .query(&[
-            ("orderBy",             order_by),
-            ("timeRange",           time_range),
-            ("author",              ""),
-            ("query",               ""),
-            ("gameVersion",         ""),
-            ("devStates",           "1"),
-            ("devStates",           "2"),
-            ("devStatesExplicit",   "true"),
-            ("myFavorites",         "false"),
-            ("ignoreLibraries",     "true"),
-            ("ignoreClosedSource",  "false"),
+            ("orderBy", order_by),
+            ("timeRange", time_range),
+            ("author", ""),
+            ("query", ""),
+            ("gameVersion", ""),
+            ("devStates", "1"),
+            ("devStates", "2"),
+            ("devStatesExplicit", "true"),
+            ("myFavorites", "false"),
+            ("ignoreLibraries", "true"),
+            ("ignoreClosedSource", "false"),
         ])
-        .send().await?.text().await?;
+        .send()
+        .await?
+        .text()
+        .await?;
     let batch = parse_cards(&html, &mut rank);
     let done = batch.len() < 20;
     all_mods.extend(batch);
@@ -37,24 +40,29 @@ pub async fn scrape_all(
             let html = client
                 .get(format!("{}/Mods/LoadMoreThumbnails", BASE_URL))
                 .query(&[
-                    ("orderBy",             order_by),
-                    ("timeRange",           time_range),
-                    ("author",              ""),
-                    ("query",               ""),
-                    ("gameVersion",         ""),
-                    ("devStates",           "1"),
-                    ("devStates",           "2"),
-                    ("devStatesExplicit",   "true"),
-                    ("myFavorites",         "false"),
-                    ("ignoreLibraries",     "true"),
-                    ("ignoreClosedSource",  "false"),
-                    ("page",                &page.to_string()),
+                    ("orderBy", order_by),
+                    ("timeRange", time_range),
+                    ("author", ""),
+                    ("query", ""),
+                    ("gameVersion", ""),
+                    ("devStates", "1"),
+                    ("devStates", "2"),
+                    ("devStatesExplicit", "true"),
+                    ("myFavorites", "false"),
+                    ("ignoreLibraries", "true"),
+                    ("ignoreClosedSource", "false"),
+                    ("page", &page.to_string()),
                 ])
-                .send().await?.text().await?;
+                .send()
+                .await?
+                .text()
+                .await?;
             let batch = parse_cards(&html, &mut rank);
             let done = batch.len() < 20;
             all_mods.extend(batch);
-            if done { break; }
+            if done {
+                break;
+            }
             page += 1;
         }
     }
@@ -69,32 +77,32 @@ fn parse_cards(html: &str, rank: &mut i32) -> Vec<Mod> {
     let card_sel = Selector::parse("a.mod-card").unwrap();
 
     // h5 title + mod version span (plain mod-card-tag with no extra classes in h5)
-    let title_sel       = Selector::parse("h5.mod-card-title").unwrap();
-    let h5_spans_sel    = Selector::parse("h5.mod-card-title > span").unwrap();
-    let mod_ver_sel     = Selector::parse("h5.mod-card-title > span.mod-card-tag").unwrap();
+    let title_sel = Selector::parse("h5.mod-card-title").unwrap();
+    let h5_spans_sel = Selector::parse("h5.mod-card-title > span").unwrap();
+    let mod_ver_sel = Selector::parse("h5.mod-card-title > span.mod-card-tag").unwrap();
 
     // Card-body items (devstate, game-version, category tags)
-    let author_sel      = Selector::parse(".card-body p.text-muted").unwrap();
-    let desc_sel        = Selector::parse(".card-body p:not(.text-muted)").unwrap();
-    let devstate_sel    = Selector::parse(".card-body span[class*='mod-card-devstate']").unwrap();
-    let game_ver_sel    = Selector::parse(".card-body .mod-card-game-version").unwrap();
-    let tag_sel         = Selector::parse(".card-body span.mod-card-tag").unwrap();
+    let author_sel = Selector::parse(".card-body p.text-muted").unwrap();
+    let desc_sel = Selector::parse(".card-body p:not(.text-muted)").unwrap();
+    let devstate_sel = Selector::parse(".card-body span[class*='mod-card-devstate']").unwrap();
+    let game_ver_sel = Selector::parse(".card-body .mod-card-game-version").unwrap();
+    let tag_sel = Selector::parse(".card-body span.mod-card-tag").unwrap();
 
     // Stats bar
-    let updated_sel     = Selector::parse(".stats .time-ago[data-type='updated']").unwrap();
+    let updated_sel = Selector::parse(".stats .time-ago[data-type='updated']").unwrap();
     // Os 3 divs no lado direito do stats: download, favorites, approval%
-    let stats_nums_sel  = Selector::parse(".stats > div:last-child > div > div:last-child").unwrap();
+    let stats_nums_sel = Selector::parse(".stats > div:last-child > div > div:last-child").unwrap();
 
     // Thumbnail
-    let thumb_sel       = Selector::parse(".mod-card-icon img").unwrap();
+    let thumb_sel = Selector::parse(".mod-card-icon img").unwrap();
 
     let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
 
     doc.select(&card_sel)
         .filter_map(|card| {
             let href = card.value().attr("href")?;
-            let id   = href.split('/').nth(2)?.to_string();
-            let url  = format!("{}{}", BASE_URL, href);
+            let id = href.split('/').nth(2)?.to_string();
+            let url = format!("{}{}", BASE_URL, href);
 
             let title_el = card.select(&title_sel).next()?;
 
@@ -114,7 +122,8 @@ fn parse_cards(html: &str, rank: &mut i32) -> Vec<Mod> {
                     !cls.contains("mod-card-devstate") && !cls.contains("mod-card-game-version")
                 })
                 .map(|s| {
-                    s.text().collect::<String>()
+                    s.text()
+                        .collect::<String>()
                         .trim()
                         .trim_start_matches('v')
                         .to_string()
@@ -128,13 +137,21 @@ fn parse_cards(html: &str, rank: &mut i32) -> Vec<Mod> {
                 name = name.replace(t.as_str(), "");
             }
             let name = name.trim().to_string();
-            if name.is_empty() { return None; }
+            if name.is_empty() {
+                return None;
+            }
 
             // Author: "by AuthorName" strip prefix
             let author = card
                 .select(&author_sel)
                 .next()
-                .map(|p| p.text().collect::<String>().trim().trim_start_matches("by ").to_string())
+                .map(|p| {
+                    p.text()
+                        .collect::<String>()
+                        .trim()
+                        .trim_start_matches("by ")
+                        .to_string()
+                })
                 .unwrap_or_default();
 
             // Description: first non-muted p
@@ -149,11 +166,17 @@ fn parse_cards(html: &str, rank: &mut i32) -> Vec<Mod> {
                 .select(&devstate_sel)
                 .find_map(|s| {
                     let cls = s.value().attr("class").unwrap_or("");
-                    if      cls.contains("mod-card-devstate-1") { Some(1i32) }
-                    else if cls.contains("mod-card-devstate-2") { Some(2) }
-                    else if cls.contains("mod-card-devstate-3") { Some(3) }
-                    else if cls.contains("mod-card-devstate-4") { Some(4) }
-                    else { None }
+                    if cls.contains("mod-card-devstate-1") {
+                        Some(1i32)
+                    } else if cls.contains("mod-card-devstate-2") {
+                        Some(2)
+                    } else if cls.contains("mod-card-devstate-3") {
+                        Some(3)
+                    } else if cls.contains("mod-card-devstate-4") {
+                        Some(4)
+                    } else {
+                        None
+                    }
                 })
                 .unwrap_or(0);
 
@@ -163,10 +186,7 @@ fn parse_cards(html: &str, rank: &mut i32) -> Vec<Mod> {
                 .next()
                 .map(|el| {
                     // text() includes SVG text nodes — grab only text, skip SVG
-                    el.text()
-                        .collect::<String>()
-                        .trim()
-                        .to_string()
+                    el.text().collect::<String>().trim().to_string()
                 })
                 .unwrap_or_default();
 
@@ -195,13 +215,16 @@ fn parse_cards(html: &str, rank: &mut i32) -> Vec<Mod> {
                 .map(|el| el.text().collect::<String>().trim().to_string())
                 .collect();
 
-            let downloads = stats_nums.first()
+            let downloads = stats_nums
+                .first()
                 .and_then(|s| s.parse::<i64>().ok())
                 .unwrap_or(0);
-            let favorites = stats_nums.get(1)
+            let favorites = stats_nums
+                .get(1)
                 .and_then(|s| s.parse::<i64>().ok())
                 .unwrap_or(0);
-            let approval_pct = stats_nums.get(2)
+            let approval_pct = stats_nums
+                .get(2)
                 .and_then(|s| s.trim_end_matches('%').parse::<i32>().ok())
                 .unwrap_or(-1);
 
@@ -211,8 +234,11 @@ fn parse_cards(html: &str, rank: &mut i32) -> Vec<Mod> {
                 .next()
                 .and_then(|img| img.value().attr("src"))
                 .map(|src| {
-                    if src.starts_with("http") { src.to_string() }
-                    else { format!("{}{}", BASE_URL, src) }
+                    if src.starts_with("http") {
+                        src.to_string()
+                    } else {
+                        format!("{}{}", BASE_URL, src)
+                    }
                 });
 
             let current_rank = *rank;
@@ -248,14 +274,20 @@ pub async fn resolve_download_url(
 ) -> Result<String, String> {
     let html = client
         .get(mod_page_url)
-        .send().await.map_err(|e| format!("Failed to access {}: {}", mod_page_url, e))?
-        .text().await.map_err(|e| e.to_string())?;
+        .send()
+        .await
+        .map_err(|e| format!("Failed to access {}: {}", mod_page_url, e))?
+        .text()
+        .await
+        .map_err(|e| e.to_string())?;
 
     let doc = Html::parse_document(&html);
-    let sel = Selector::parse("a.mod-download-trigger")
-        .map_err(|e| format!("Selector error: {}", e))?;
+    let sel =
+        Selector::parse("a.mod-download-trigger").map_err(|e| format!("Selector error: {}", e))?;
 
-    let download_path = doc.select(&sel).next()
+    let download_path = doc
+        .select(&sel)
+        .next()
         .and_then(|el| el.value().attr("href"))
         .ok_or_else(|| format!("Download link not found at {}", mod_page_url))?;
 
@@ -331,12 +363,17 @@ pub async fn scrape_mod_details(
 ) -> Result<ModDetails, String> {
     let html = client
         .get(mod_url)
-        .send().await.map_err(|e| format!("Failed to load mod {}: {}", mod_url, e))?
-        .text().await.map_err(|e| e.to_string())?;
+        .send()
+        .await
+        .map_err(|e| format!("Failed to load mod {}: {}", mod_url, e))?
+        .text()
+        .await
+        .map_err(|e| e.to_string())?;
 
     let doc = Html::parse_document(&html);
 
-    let id = mod_url.split('/')
+    let id = mod_url
+        .split('/')
         .nth(4)
         .ok_or_else(|| "Invalid mod URL".to_string())?
         .to_string();
@@ -345,10 +382,10 @@ pub async fn scrape_mod_details(
     let version_tag_sel = Selector::parse(".mv2-header-center h1 span.mod-card-tag").unwrap();
     let author_sel = Selector::parse(".mv2-header-center .text-muted a").unwrap();
     let short_desc_sel = Selector::parse(".mv2-header-center .mv2-short-desc").unwrap();
-    
+
     let info_pills_sel = Selector::parse(".mv2-header-center .info-pill").unwrap();
     let download_count_sel = Selector::parse("#downloadCountD").unwrap();
-    
+
     let game_versions_sel = Selector::parse(".mv2-meta-bar .mv2-meta-item strong").unwrap();
     let save_compat_sel = Selector::parse(".mv2-save-compat").unwrap();
     let vote_percentage_sel = Selector::parse("#votePercentageD").unwrap();
@@ -359,22 +396,41 @@ pub async fn scrape_mod_details(
     let tags_sel = Selector::parse(".mod-tags-row a.mod-tag").unwrap();
     let description_sel = Selector::parse(".description").unwrap();
 
-    let full_h1_text = doc.select(&h1_sel).next().map(|el| el.text().collect::<String>()).unwrap_or_default();
-    let version_available = doc.select(&version_tag_sel).next()
-        .map(|el| el.text().collect::<String>().trim().trim_start_matches('v').to_string())
+    let full_h1_text = doc
+        .select(&h1_sel)
+        .next()
+        .map(|el| el.text().collect::<String>())
         .unwrap_or_default();
-    
+    let version_available = doc
+        .select(&version_tag_sel)
+        .next()
+        .map(|el| {
+            el.text()
+                .collect::<String>()
+                .trim()
+                .trim_start_matches('v')
+                .to_string()
+        })
+        .unwrap_or_default();
+
     let name = if !version_available.is_empty() {
-        full_h1_text.replace(&format!("v{}", version_available), "").trim().to_string()
+        full_h1_text
+            .replace(&format!("v{}", version_available), "")
+            .trim()
+            .to_string()
     } else {
         full_h1_text.trim().to_string()
     };
 
-    let author = doc.select(&author_sel).next()
+    let author = doc
+        .select(&author_sel)
+        .next()
         .map(|el| el.text().collect::<String>().trim().to_string())
         .unwrap_or_default();
 
-    let short_description = doc.select(&short_desc_sel).next()
+    let short_description = doc
+        .select(&short_desc_sel)
+        .next()
         .map(|el| el.text().collect::<String>().trim().to_string())
         .unwrap_or_default();
 
@@ -390,29 +446,64 @@ pub async fn scrape_mod_details(
     }
 
     let file_size_sel = Selector::parse(".mv2-file-size strong").unwrap();
-    let zip_file_size = doc.select(&file_size_sel).next()
+    let zip_file_size = doc
+        .select(&file_size_sel)
+        .next()
         .map(|el| el.text().collect::<String>().trim().to_string());
 
-    let downloads = doc.select(&download_count_sel).next()
-        .and_then(|el| el.text().collect::<String>().trim().replace(',', "").parse::<i64>().ok())
+    let downloads = doc
+        .select(&download_count_sel)
+        .next()
+        .and_then(|el| {
+            el.text()
+                .collect::<String>()
+                .trim()
+                .replace(',', "")
+                .parse::<i64>()
+                .ok()
+        })
         .unwrap_or(0);
 
-    let game_versions = doc.select(&game_versions_sel).next()
+    let game_versions = doc
+        .select(&game_versions_sel)
+        .next()
         .map(|el| el.text().collect::<String>().trim().to_string())
         .unwrap_or_default();
 
-    let save_compat_text = doc.select(&save_compat_sel).next()
+    let save_compat_text = doc
+        .select(&save_compat_sel)
+        .next()
         .map(|el| el.text().collect::<String>())
         .unwrap_or_default();
-    let save_game_add_ok = save_compat_text.contains("Add ✓") || save_compat_text.contains("Add \u{2713}");
-    let save_game_remove_ok = save_compat_text.contains("Remove ✓") || save_compat_text.contains("Remove \u{2713}");
+    let save_game_add_ok =
+        save_compat_text.contains("Add ✓") || save_compat_text.contains("Add \u{2713}");
+    let save_game_remove_ok =
+        save_compat_text.contains("Remove ✓") || save_compat_text.contains("Remove \u{2713}");
 
-    let approval_pct = doc.select(&vote_percentage_sel).next()
-        .and_then(|el| el.text().collect::<String>().trim().trim_end_matches('%').parse::<i32>().ok())
+    let approval_pct = doc
+        .select(&vote_percentage_sel)
+        .next()
+        .and_then(|el| {
+            el.text()
+                .collect::<String>()
+                .trim()
+                .trim_end_matches('%')
+                .parse::<i32>()
+                .ok()
+        })
         .unwrap_or(-1);
-    
-    let favorites = doc.select(&favorites_count_sel).next()
-        .and_then(|el| el.text().collect::<String>().trim().replace(',', "").parse::<i64>().ok())
+
+    let favorites = doc
+        .select(&favorites_count_sel)
+        .next()
+        .and_then(|el| {
+            el.text()
+                .collect::<String>()
+                .trim()
+                .replace(',', "")
+                .parse::<i64>()
+                .ok()
+        })
         .unwrap_or(0);
 
     let mut websites = Vec::new();
@@ -430,13 +521,17 @@ pub async fn scrape_mod_details(
         }
     }
 
-    let tags = doc.select(&tags_sel)
+    let tags = doc
+        .select(&tags_sel)
         .map(|el| el.text().collect::<String>().trim().to_string())
         .collect::<Vec<_>>();
 
     let rewrite_urls = |html: &str| -> String {
         html.replace("src=\"/", "src=\"https://hub.coigame.com/")
-            .replace("data-full-src=\"/", "data-full-src=\"https://hub.coigame.com/")
+            .replace(
+                "data-full-src=\"/",
+                "data-full-src=\"https://hub.coigame.com/",
+            )
             .replace("href=\"/", "href=\"https://hub.coigame.com/")
     };
 
@@ -450,7 +545,11 @@ pub async fn scrape_mod_details(
             let img_sel = Selector::parse("img").unwrap();
             for img in desc_el.select(&img_sel) {
                 if let Some(src) = img.value().attr("src") {
-                    let abs_src = if src.starts_with("http") { src.to_string() } else { format!("https://hub.coigame.com{}", src) };
+                    let abs_src = if src.starts_with("http") {
+                        src.to_string()
+                    } else {
+                        format!("https://hub.coigame.com{}", src)
+                    };
                     screenshots.push(abs_src);
                 }
             }
@@ -472,57 +571,94 @@ pub async fn scrape_mod_details(
             } else {
                 "info".to_string()
             };
-            let description = dds.next()
+            let description = dds
+                .next()
                 .map(|el| el.text().collect::<String>().trim().to_string())
                 .unwrap_or_default();
-            
-            capabilities.push(ModCapability { name, severity, description });
+
+            capabilities.push(ModCapability {
+                name,
+                severity,
+                description,
+            });
         }
     }
 
     let mut announcements = Vec::new();
-    let announce_item_sel = Selector::parse("#tab-announcements .darkerGreyBg.p-3.rounded.mb-3").unwrap();
+    let announce_item_sel =
+        Selector::parse("#tab-announcements .darkerGreyBg.p-3.rounded.mb-3").unwrap();
     for ann in doc.select(&announce_item_sel) {
-        let title = ann.select(&Selector::parse("h4.mb-1").unwrap()).next()
+        let title = ann
+            .select(&Selector::parse("h4.mb-1").unwrap())
+            .next()
             .map(|el| el.text().collect::<String>().trim().to_string())
             .unwrap_or_default();
-        
+
         let mut version = String::new();
-        if let Some(pill) = ann.select(&Selector::parse("small.text-muted span.info-pill").unwrap()).next() {
+        if let Some(pill) = ann
+            .select(&Selector::parse("small.text-muted span.info-pill").unwrap())
+            .next()
+        {
             version = pill.text().collect::<String>().trim().to_string();
         }
 
-        let full_date_text = ann.select(&Selector::parse("small.text-muted").unwrap()).next()
+        let full_date_text = ann
+            .select(&Selector::parse("small.text-muted").unwrap())
+            .next()
             .map(|el| el.text().collect::<String>())
             .unwrap_or_default();
         let date = full_date_text.replace(&version, "").trim().to_string();
 
         let desc_el = ann.select(&description_sel).next();
-        let content_html = desc_el.map(|el| rewrite_urls(&el.html())).unwrap_or_default();
+        let content_html = desc_el
+            .map(|el| rewrite_urls(&el.html()))
+            .unwrap_or_default();
 
-        announcements.push(Announcement { title, date, version, content_html });
+        announcements.push(Announcement {
+            title,
+            date,
+            version,
+            content_html,
+        });
     }
 
     let mut versions = Vec::new();
     let version_pane_sel = Selector::parse("#tab-versions .versionPane").unwrap();
     for pane in doc.select(&version_pane_sel) {
-        let v_h4 = pane.select(&Selector::parse("h4").unwrap()).next()
+        let v_h4 = pane
+            .select(&Selector::parse("h4").unwrap())
+            .next()
             .map(|el| el.text().collect::<String>().trim().to_string())
             .unwrap_or_default();
-        if v_h4.is_empty() { continue; }
+        if v_h4.is_empty() {
+            continue;
+        }
 
-        let latest = pane.select(&Selector::parse(".info-pill").unwrap()).next()
+        let latest = pane
+            .select(&Selector::parse(".info-pill").unwrap())
+            .next()
             .map(|el| el.text().collect::<String>().trim().to_string() == "Latest")
             .unwrap_or(false);
 
-        let download_url = pane.select(&Selector::parse(".mod-download-trigger").unwrap()).next()
+        let download_url = pane
+            .select(&Selector::parse(".mod-download-trigger").unwrap())
+            .next()
             .and_then(|el| el.value().attr("href"))
             .map(|h| format!("https://hub.coigame.com{}", h))
             .unwrap_or_default();
 
         let v_download_count_sel = Selector::parse(".mv2-compound-count").unwrap();
-        let downloads = pane.select(&v_download_count_sel).next()
-            .and_then(|el| el.text().collect::<String>().trim().replace(',', "").parse::<i64>().ok())
+        let downloads = pane
+            .select(&v_download_count_sel)
+            .next()
+            .and_then(|el| {
+                el.text()
+                    .collect::<String>()
+                    .trim()
+                    .replace(',', "")
+                    .parse::<i64>()
+                    .ok()
+            })
             .unwrap_or(0);
 
         let mut v_game_version = String::new();
@@ -549,7 +685,9 @@ pub async fn scrape_mod_details(
         }
 
         let changelog_pre_sel = Selector::parse("pre").unwrap();
-        let changelog = pane.select(&changelog_pre_sel).next()
+        let changelog = pane
+            .select(&changelog_pre_sel)
+            .next()
             .map(|el| el.text().collect::<String>().trim().to_string())
             .unwrap_or_default();
 
@@ -567,30 +705,51 @@ pub async fn scrape_mod_details(
     }
 
     let mut changelogs = Vec::new();
-    let changelog_item_sel = Selector::parse("#tab-changelog .darkerGreyBg.p-3.rounded.mb-3").unwrap();
+    let changelog_item_sel =
+        Selector::parse("#tab-changelog .darkerGreyBg.p-3.rounded.mb-3").unwrap();
     for ch in doc.select(&changelog_item_sel) {
-        let full_title = ch.select(&Selector::parse("h4.mb-2").unwrap()).next()
+        let full_title = ch
+            .select(&Selector::parse("h4.mb-2").unwrap())
+            .next()
             .map(|el| el.text().collect::<String>().trim().to_string())
             .unwrap_or_default();
-        if full_title.is_empty() { continue; }
+        if full_title.is_empty() {
+            continue;
+        }
 
         let parts: Vec<&str> = full_title.split('|').collect();
-        let version = parts.first().map(|s| s.trim().to_string()).unwrap_or_default();
-        let date = parts.get(1).map(|s| s.trim().to_string()).unwrap_or_default();
+        let version = parts
+            .first()
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
+        let date = parts
+            .get(1)
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
 
-        let text = ch.select(&Selector::parse("pre").unwrap()).next()
+        let text = ch
+            .select(&Selector::parse("pre").unwrap())
+            .next()
             .map(|el| el.text().collect::<String>().trim().to_string())
             .unwrap_or_default();
 
-        changelogs.push(ChangelogEntry { version, date, text });
+        changelogs.push(ChangelogEntry {
+            version,
+            date,
+            text,
+        });
     }
 
     let tab_dependencies_sel = Selector::parse("#tab-dependencies").unwrap();
-    let dependencies = doc.select(&tab_dependencies_sel).next()
+    let dependencies = doc
+        .select(&tab_dependencies_sel)
+        .next()
         .map(|el| el.text().collect::<String>().trim().to_string())
         .unwrap_or_else(|| "This mod has no dependencies.".to_string());
 
-    let updated_at = doc.select(&Selector::parse(".mv2-header-center span.time-ago").unwrap()).next()
+    let updated_at = doc
+        .select(&Selector::parse(".mv2-header-center span.time-ago").unwrap())
+        .next()
         .and_then(|el| el.value().attr("data-utc-date"))
         .map(|s| s.to_string())
         .unwrap_or_default();
@@ -660,13 +819,29 @@ mod tests {
         let mods = parse_cards(html, &mut rank);
         assert_eq!(mods.len(), 1, "expected 1 mod");
         let m = &mods[0];
-        assert_eq!(m.updated_at.as_deref(), Some("2026-05-08T14:36:28Z"),
-            "updated_at mismatch: {:?}", m.updated_at);
+        assert_eq!(
+            m.updated_at.as_deref(),
+            Some("2026-05-08T14:36:28Z"),
+            "updated_at mismatch: {:?}",
+            m.updated_at
+        );
         assert_eq!(m.downloads, 2705, "downloads mismatch: {}", m.downloads);
-        assert_eq!(m.favorites, 81,   "favorites mismatch: {}", m.favorites);
-        assert_eq!(m.approval_pct, 85, "approval_pct mismatch: {}", m.approval_pct);
-        assert_eq!(m.version_available, "1.0", "version mismatch: {}", m.version_available);
+        assert_eq!(m.favorites, 81, "favorites mismatch: {}", m.favorites);
+        assert_eq!(
+            m.approval_pct, 85,
+            "approval_pct mismatch: {}",
+            m.approval_pct
+        );
+        assert_eq!(
+            m.version_available, "1.0",
+            "version mismatch: {}",
+            m.version_available
+        );
         assert_eq!(m.devstate, 2, "devstate mismatch: {}", m.devstate);
-        assert_eq!(m.game_version, "0.8.4", "game_version mismatch: {}", m.game_version);
+        assert_eq!(
+            m.game_version, "0.8.4",
+            "game_version mismatch: {}",
+            m.game_version
+        );
     }
 }

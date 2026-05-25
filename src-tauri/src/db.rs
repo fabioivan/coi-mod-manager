@@ -1,7 +1,7 @@
-use rusqlite::{Connection, Result, params};
+use crate::models::{Mod, Profile, ProfileMod};
+use rusqlite::{params, Connection, Result};
 use std::path::Path;
 use tokio::sync::Mutex;
-use crate::models::{Mod, Profile, ProfileMod};
 
 pub struct Database(pub Mutex<Connection>);
 
@@ -14,17 +14,23 @@ impl Database {
 
     pub async fn migrate(&self) -> Result<()> {
         let conn = self.0.lock().await;
-        conn.execute_batch("
+        conn.execute_batch(
+            "
             CREATE TABLE IF NOT EXISTS schema_migrations (
                 version INTEGER PRIMARY KEY,
                 applied_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
-        ")?;
+        ",
+        )?;
 
         let v1: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM schema_migrations WHERE version = 1", [], |r| r.get(0))?;
+            "SELECT COUNT(*) FROM schema_migrations WHERE version = 1",
+            [],
+            |r| r.get(0),
+        )?;
         if v1 == 0 {
-            conn.execute_batch("
+            conn.execute_batch(
+                "
                 CREATE TABLE IF NOT EXISTS mods (
                     id TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
@@ -46,49 +52,74 @@ impl Database {
                 CREATE INDEX IF NOT EXISTS idx_installed ON mods(is_installed);
                 CREATE INDEX IF NOT EXISTS idx_updated_at ON mods(updated_at DESC);
                 INSERT INTO schema_migrations (version) VALUES (1);
-            ")?;
+            ",
+            )?;
         }
 
         macro_rules! alter_if_missing {
             ($ver:expr, $sql:expr) => {{
                 let n: i64 = conn.query_row(
                     "SELECT COUNT(*) FROM schema_migrations WHERE version = ?1",
-                    params![$ver], |r| r.get(0))?;
+                    params![$ver],
+                    |r| r.get(0),
+                )?;
                 if n == 0 {
                     let _ = conn.execute_batch($sql);
                     conn.execute_batch(&format!(
-                        "INSERT INTO schema_migrations (version) VALUES ({});", $ver))?;
+                        "INSERT INTO schema_migrations (version) VALUES ({});",
+                        $ver
+                    ))?;
                 }
             }};
         }
 
-        alter_if_missing!(2, "ALTER TABLE mods ADD COLUMN author TEXT NOT NULL DEFAULT '';\
+        alter_if_missing!(
+            2,
+            "ALTER TABLE mods ADD COLUMN author TEXT NOT NULL DEFAULT '';\
                               ALTER TABLE mods ADD COLUMN description TEXT NOT NULL DEFAULT '';\
-                              ALTER TABLE mods ADD COLUMN devstate INTEGER NOT NULL DEFAULT 0;");
-        alter_if_missing!(3, "ALTER TABLE mods ADD COLUMN game_version TEXT NOT NULL DEFAULT '';");
-        alter_if_missing!(4, "ALTER TABLE mods ADD COLUMN scrape_rank INTEGER NOT NULL DEFAULT 0;");
+                              ALTER TABLE mods ADD COLUMN devstate INTEGER NOT NULL DEFAULT 0;"
+        );
+        alter_if_missing!(
+            3,
+            "ALTER TABLE mods ADD COLUMN game_version TEXT NOT NULL DEFAULT '';"
+        );
+        alter_if_missing!(
+            4,
+            "ALTER TABLE mods ADD COLUMN scrape_rank INTEGER NOT NULL DEFAULT 0;"
+        );
         alter_if_missing!(5, "ALTER TABLE mods ADD COLUMN updated_at TEXT;");
-        alter_if_missing!(6,
+        alter_if_missing!(
+            6,
             "ALTER TABLE mods ADD COLUMN downloads INTEGER NOT NULL DEFAULT 0;\
              ALTER TABLE mods ADD COLUMN favorites INTEGER NOT NULL DEFAULT 0;\
-             ALTER TABLE mods ADD COLUMN approval_pct INTEGER NOT NULL DEFAULT -1;");
+             ALTER TABLE mods ADD COLUMN approval_pct INTEGER NOT NULL DEFAULT -1;"
+        );
 
         let v7: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM schema_migrations WHERE version = 7", [], |r| r.get(0))?;
+            "SELECT COUNT(*) FROM schema_migrations WHERE version = 7",
+            [],
+            |r| r.get(0),
+        )?;
         if v7 == 0 {
-            conn.execute_batch("
+            conn.execute_batch(
+                "
                 CREATE TABLE IF NOT EXISTS settings (
                     key TEXT PRIMARY KEY,
                     value TEXT NOT NULL
                 );
                 INSERT INTO schema_migrations (version) VALUES (7);
-            ")?;
+            ",
+            )?;
         }
 
         let v8: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM schema_migrations WHERE version = 8", [], |r| r.get(0))?;
+            "SELECT COUNT(*) FROM schema_migrations WHERE version = 8",
+            [],
+            |r| r.get(0),
+        )?;
         if v8 == 0 {
-            conn.execute_batch("
+            conn.execute_batch(
+                "
                 CREATE TABLE IF NOT EXISTS profiles (
                     id TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
@@ -108,18 +139,23 @@ impl Database {
                 VALUES ('default', 'Default', 1);
                 INSERT OR IGNORE INTO settings (key, value) VALUES ('active_profile', 'default');
                 INSERT INTO schema_migrations (version) VALUES (8);
-            ")?;
+            ",
+            )?;
 
             let existing: i64 = conn.query_row(
                 "SELECT COUNT(*) FROM profile_mods WHERE profile_id = 'default'",
-                [], |r| r.get(0))?;
+                [],
+                |r| r.get(0),
+            )?;
             if existing == 0 {
-                conn.execute_batch("
+                conn.execute_batch(
+                    "
                     INSERT INTO profile_mods (profile_id, mod_id, version_installed)
                     SELECT 'default', id, version_installed
                     FROM mods
                     WHERE is_installed = 1 AND version_installed IS NOT NULL;
-                ")?;
+                ",
+                )?;
             }
         }
 
@@ -134,32 +170,33 @@ impl Database {
                     updated_at, downloads, favorites, approval_pct,
                     url, thumbnail, is_installed, last_scraped_at
              FROM mods
-             ORDER BY updated_at DESC NULLS LAST, scrape_rank ASC"
+             ORDER BY updated_at DESC NULLS LAST, scrape_rank ASC",
         )?;
 
-        let mods = stmt.query_map([], |row| {
-            Ok(Mod {
-                id:                row.get(0)?,
-                name:              row.get(1)?,
-                author:            row.get(2)?,
-                description:       row.get(3)?,
-                category:          row.get(4)?,
-                devstate:          row.get(5)?,
-                game_version:      row.get(6)?,
-                scrape_rank:       row.get(7)?,
-                version_available: row.get(8)?,
-                version_installed: row.get(9)?,
-                updated_at:        row.get(10)?,
-                downloads:         row.get(11)?,
-                favorites:         row.get(12)?,
-                approval_pct:      row.get(13)?,
-                url:               row.get(14)?,
-                thumbnail:         row.get(15)?,
-                is_installed:      row.get::<_, i32>(16)? != 0,
-                last_scraped_at:   row.get(17)?,
-            })
-        })?
-        .collect::<Result<Vec<_>>>()?;
+        let mods = stmt
+            .query_map([], |row| {
+                Ok(Mod {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    author: row.get(2)?,
+                    description: row.get(3)?,
+                    category: row.get(4)?,
+                    devstate: row.get(5)?,
+                    game_version: row.get(6)?,
+                    scrape_rank: row.get(7)?,
+                    version_available: row.get(8)?,
+                    version_installed: row.get(9)?,
+                    updated_at: row.get(10)?,
+                    downloads: row.get(11)?,
+                    favorites: row.get(12)?,
+                    approval_pct: row.get(13)?,
+                    url: row.get(14)?,
+                    thumbnail: row.get(15)?,
+                    is_installed: row.get::<_, i32>(16)? != 0,
+                    last_scraped_at: row.get(17)?,
+                })
+            })?
+            .collect::<Result<Vec<_>>>()?;
 
         Ok(mods)
     }
@@ -189,10 +226,22 @@ impl Database {
                 thumbnail         = excluded.thumbnail,
                 last_scraped_at   = excluded.last_scraped_at",
             params![
-                m.id, m.name, m.author, m.description, m.category, m.devstate,
-                m.game_version, m.scrape_rank, m.version_available,
-                m.updated_at, m.downloads, m.favorites, m.approval_pct,
-                m.url, m.thumbnail, m.last_scraped_at
+                m.id,
+                m.name,
+                m.author,
+                m.description,
+                m.category,
+                m.devstate,
+                m.game_version,
+                m.scrape_rank,
+                m.version_available,
+                m.updated_at,
+                m.downloads,
+                m.favorites,
+                m.approval_pct,
+                m.url,
+                m.thumbnail,
+                m.last_scraped_at
             ],
         )?;
         Ok(())
@@ -246,11 +295,9 @@ impl Database {
 
     pub async fn get_mod_page_url(&self, mod_id: &str) -> Result<Option<String>> {
         let conn = self.0.lock().await;
-        match conn.query_row(
-            "SELECT url FROM mods WHERE id = ?1",
-            params![mod_id],
-            |r| r.get(0),
-        ) {
+        match conn.query_row("SELECT url FROM mods WHERE id = ?1", params![mod_id], |r| {
+            r.get(0)
+        }) {
             Ok(url) => Ok(Some(url)),
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
             Err(e) => Err(e),
@@ -264,9 +311,11 @@ impl Database {
              WHERE is_installed = 1
                AND version_installed IS NOT NULL
                AND version_installed != version_available
-               AND version_available != ''"
+               AND version_available != ''",
         )?;
-        let ids = stmt.query_map([], |r| r.get(0))?.collect::<Result<Vec<String>>>()?;
+        let ids = stmt
+            .query_map([], |r| r.get(0))?
+            .collect::<Result<Vec<String>>>()?;
         Ok(ids)
     }
 
@@ -292,18 +341,20 @@ impl Database {
              FROM profiles p
              LEFT JOIN (SELECT profile_id, COUNT(*) as cnt FROM profile_mods GROUP BY profile_id) pm
                ON pm.profile_id = p.id
-             ORDER BY p.is_default DESC, p.name ASC"
+             ORDER BY p.is_default DESC, p.name ASC",
         )?;
-        let rows = stmt.query_map([], |row| {
-            Ok(Profile {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                is_default: row.get::<_, i32>(2)? != 0,
-                created_at: row.get(3)?,
-                updated_at: row.get(4)?,
-                mod_count: row.get(5)?,
-            })
-        })?.collect::<Result<Vec<_>>>()?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok(Profile {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    is_default: row.get::<_, i32>(2)? != 0,
+                    created_at: row.get(3)?,
+                    updated_at: row.get(4)?,
+                    mod_count: row.get(5)?,
+                })
+            })?
+            .collect::<Result<Vec<_>>>()?;
         Ok(rows)
     }
 
@@ -355,16 +406,18 @@ impl Database {
             "SELECT mod_id, version_installed, pool_path, folder_name
              FROM profile_mods
              WHERE profile_id = ?1
-             ORDER BY mod_id"
+             ORDER BY mod_id",
         )?;
-        let rows = stmt.query_map(params![profile_id], |row| {
-            Ok(ProfileMod {
-                mod_id: row.get(0)?,
-                version_installed: row.get(1)?,
-                pool_path: row.get(2)?,
-                folder_name: row.get(3)?,
-            })
-        })?.collect::<Result<Vec<_>>>()?;
+        let rows = stmt
+            .query_map(params![profile_id], |row| {
+                Ok(ProfileMod {
+                    mod_id: row.get(0)?,
+                    version_installed: row.get(1)?,
+                    pool_path: row.get(2)?,
+                    folder_name: row.get(3)?,
+                })
+            })?
+            .collect::<Result<Vec<_>>>()?;
         Ok(rows)
     }
 
@@ -404,7 +457,10 @@ impl Database {
 
     pub async fn update_is_installed_from_profile(&self, profile_id: &str) -> Result<()> {
         let conn = self.0.lock().await;
-        conn.execute("UPDATE mods SET is_installed = 0, version_installed = NULL", [])?;
+        conn.execute(
+            "UPDATE mods SET is_installed = 0, version_installed = NULL",
+            [],
+        )?;
         conn.execute_batch(&format!(
             "UPDATE mods SET is_installed = 1, version_installed = (
                 SELECT version_installed FROM profile_mods
@@ -418,5 +474,4 @@ impl Database {
         ))?;
         Ok(())
     }
-
 }

@@ -4,15 +4,13 @@ mod models;
 mod scraper;
 
 use commands::{
-    get_mods, install_mod, uninstall_mod, run_scrape, sync_mods, update_all_mods, update_mod,
-    get_setting, set_setting, detect_mods_folder, detect_game_version,
-    detect_game_version_from_path, pick_folder,
-    scan_installed_mods, run_scan_installed,
-    check_for_update, install_update, check_app_update_on_startup, get_mod_details,
-    get_app_version, get_changelog,
-    get_profiles, create_profile, rename_profile, delete_profile,
-    set_default_profile, get_active_profile, switch_profile,
-    export_profile, import_profile, get_mods_folder_size,
+    check_app_update_on_startup, check_for_update, create_profile, delete_profile,
+    detect_game_version, detect_game_version_from_path, detect_mods_folder, export_profile,
+    get_active_profile, get_app_version, get_changelog, get_mod_details, get_mods,
+    get_mods_folder_size, get_profiles, get_setting, import_profile, install_mod, install_update,
+    pick_folder, rename_profile, run_scan_installed, run_scrape, scan_installed_mods,
+    set_default_profile, set_setting, switch_profile, sync_mods, uninstall_mod, update_all_mods,
+    update_mod,
 };
 use db::Database;
 use tauri::Manager;
@@ -30,14 +28,11 @@ pub fn run() {
             std::fs::create_dir_all(&data_dir)?;
             let db_path = data_dir.join("coi_mods.db");
 
-            let db = Database::open(&db_path)
-                .expect("falha ao abrir banco de dados");
+            let db = Database::open(&db_path).expect("falha ao abrir banco de dados");
 
-            tauri::async_runtime::block_on(db.migrate())
-                .expect("falha ao executar migrations");
+            tauri::async_runtime::block_on(db.migrate()).expect("falha ao executar migrations");
 
-            let needs = tauri::async_runtime::block_on(db.needs_scrape(1))
-                .unwrap_or(true);
+            let needs = tauri::async_runtime::block_on(db.needs_scrape(1)).unwrap_or(true);
 
             app.manage(db);
 
