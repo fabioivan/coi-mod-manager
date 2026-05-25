@@ -83,7 +83,6 @@ body,
 	z-index: 10;
 }
 
-
 .sync-progress-bar::after {
 	content: "";
 	position: absolute;
