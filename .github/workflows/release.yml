@@ -16,7 +16,7 @@ jobs:
           - platform: ubuntu-22.04
             args: "--bundles deb,appimage"
           - platform: windows-latest
-            args: "--bundles nsis,msi,portable"
+            args: "--bundles nsis,msi"
 
     runs-on: ${{ matrix.platform }}
 
