@@ -33,7 +33,7 @@ const OS_LABELS: Record<string, string> = {
 	macos: "macOS",
 };
 
-const LANGUAGES = ["pt-BR", "en", "zh-CN"];
+const LANGUAGES = ["pt-BR", "en", "it", "zh-CN"];
 
 interface SettingsProps {
 	activeProfile?: Profile | null;

@@ -11,7 +11,7 @@ import { UpdateModal } from "@/components/UpdateModal";
 import { Toaster } from "@/components/ui/toaster";
 import { useToast } from "@/hooks/use-toast";
 import { BlueprintDetail } from "@/pages/BlueprintDetail";
-import { BlueprintList } from "@/pages/BlueprintList";
+import { BlueprintList, type BlueprintListFilters } from "@/pages/BlueprintList";
 import { ModDetail } from "@/pages/ModDetail";
 import { ModList } from "@/pages/ModList";
 import { Settings } from "@/pages/Settings";
@@ -93,6 +93,13 @@ export default function App() {
 	const [savedGameVersion, setSavedGameVersion] = useState<string | null>(null);
 	const [changelogVersion, setChangelogVersion] = useState<string | null>(null);
 	const [appVersion, setAppVersion] = useState("");
+
+	const [blueprintFilters, setBlueprintFilters] = useState<BlueprintListFilters>({
+		search: "",
+		orderBy: "popularity",
+		timeRange: "all-time",
+		author: null,
+	});
 
 	const [filters, setFilters] = useState<SidebarFilters>({
 		sortBy: "updated",
@@ -478,21 +485,35 @@ export default function App() {
 						minWidth: 0,
 					}}
 				>
-					{view === "blueprints" ? (
+					{/* BlueprintList stays mounted to preserve scroll position */}
+					<div style={{
+						display: (view === "blueprints") ? "flex" : "none",
+						flex: 1,
+						flexDirection: "column",
+						minHeight: 0,
+						minWidth: 0,
+					}}>
 						<BlueprintList
 							blueprints={blueprints}
+							filters={blueprintFilters}
+							onFiltersChange={setBlueprintFilters}
 							onSelectBlueprint={(id) => {
 								setSelectedBlueprintId(id);
 								setView("blueprint-details");
 							}}
 						/>
-					) : view === "blueprint-details" && selectedBlueprintId ? (
+					</div>
+					{view === "blueprint-details" && selectedBlueprintId ? (
 						<BlueprintDetail
 							blueprintId={selectedBlueprintId}
 							onBack={() => setView("blueprints")}
+							onSelectAuthor={(author) => {
+								setBlueprintFilters((f) => ({ ...f, author, search: "" }));
+								setView("blueprints");
+							}}
 							allBlueprints={blueprints}
 						/>
-					) : view === "mods" ? (
+					) : view === "blueprints" ? null : view === "mods" ? (
 						<ModList
 							mods={sortedMods}
 							filters={filters}

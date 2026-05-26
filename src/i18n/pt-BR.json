@@ -28,6 +28,7 @@
 		"language_desc": "Selecione o idioma do aplicativo.",
 		"lang_pt-BR": "Português",
 		"lang_en": "English",
+		"lang_it": "Italiano",
 		"lang_zh-CN": "Chinese (Simplified)",
 		"localization": "Localização dos Mods",
 		"localization_desc": "Caminho da pasta onde o Captain of Industry armazena os mods instalados.",
@@ -225,7 +226,8 @@
 		"search_placeholder": "Buscar blueprints...",
 		"no_blueprints": "Nenhum blueprint encontrado",
 		"blueprints_count": "{{count}} blueprint",
-		"blueprints_count_plural": "{{count}} blueprints"
+		"blueprints_count_plural": "{{count}} blueprints",
+		"clear_author": "Remover filtro de autor"
 	},
 	"blueprintDetail": {
 		"title": "Detalhes do Blueprint",
@@ -235,10 +237,11 @@
 		"vote_score": "Pontuação",
 		"updated": "Atualizado em",
 		"view_on_hub": "Ver no Hub",
-		"download": "Download",
+		"copy": "Copiar",
+		"copied": "Copiado!",
+		"copy_tooltip": "Copiar string do blueprint para a área de transferência",
 		"description": "Descrição",
-		"no_description": "Nenhuma descrição disponível.",
-		"downloaded": "Baixado!"
+		"no_description": "Nenhuma descrição disponível."
 	},
 	"blueprintCard": {
 		"by_author": "por {{author}}",

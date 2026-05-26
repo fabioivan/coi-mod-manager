@@ -3,6 +3,7 @@ use crate::models::{Blueprint, ExportData, ExportMod, Mod, Profile};
 use base64::{engine::general_purpose, Engine as _};
 use std::sync::OnceLock;
 use tauri::{Emitter, Manager, State};
+use tauri_plugin_clipboard_manager::ClipboardExt;
 
 fn http_client() -> &'static reqwest::Client {
     static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
@@ -788,13 +789,6 @@ fn find_mods_folder() -> Option<String> {
     }
 }
 
-fn find_blueprints_folder() -> Option<String> {
-    let mods = find_mods_folder()?;
-    let p = std::path::Path::new(&mods);
-    let parent = p.parent()?;
-    Some(parent.join("Blueprints").to_string_lossy().into_owned())
-}
-
 #[tauri::command]
 pub async fn get_mods(db: State<'_, Database>) -> Result<Vec<Mod>, String> {
     db.get_all_mods().await.map_err(|e| e.to_string())
@@ -870,21 +864,40 @@ fn get_pool_base(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
 }
 
 fn find_manifest_dir(dir: &std::path::Path) -> Option<(String, std::path::PathBuf)> {
+    // Prefer a single subdirectory containing manifest.json
+    // (the zip typically wraps mod files in a named folder)
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        let subdirs: Vec<_> = entries
+            .flatten()
+            .filter(|e| e.path().is_dir() && e.path().join("manifest.json").exists())
+            .collect();
+        if subdirs.len() == 1 {
+            return subdirs[0]
+                .file_name()
+                .into_string()
+                .ok()
+                .map(|name| (name, subdirs[0].path()));
+        }
+    }
+
     if dir.join("manifest.json").exists() {
         return dir
             .file_name()
             .and_then(|n| n.to_str())
             .map(|s| (s.to_string(), dir.to_path_buf()));
     }
-    let entries = std::fs::read_dir(dir).ok()?;
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() && path.join("manifest.json").exists() {
-            return entry
-                .file_name()
-                .into_string()
-                .ok()
-                .map(|name| (name, path));
+
+    // Fallback: any subdirectory with manifest.json
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() && path.join("manifest.json").exists() {
+                return entry
+                    .file_name()
+                    .into_string()
+                    .ok()
+                    .map(|name| (name, path));
+            }
         }
     }
     None
@@ -928,7 +941,7 @@ fn copy_extra_files(src: &std::path::Path, dst: &std::path::Path) -> std::io::Re
                 } else {
                     dirs.push(path);
                 }
-            } else if !dst_path.exists() {
+            } else {
                 if let Some(parent) = dst_path.parent() {
                     let _ = std::fs::create_dir_all(parent);
                 }
@@ -951,8 +964,17 @@ async fn extract_to_pool(
     let version_dir = pool_base.join(format!("{}-{}", mod_id, version));
 
     if version_dir.join("manifest.json").exists() || version_dir.is_dir() {
-        if let Some((fname, _)) = find_manifest_dir(&version_dir) {
-            return Ok((fname, version_dir));
+        if let Some((fname, fpath)) = find_manifest_dir(&version_dir) {
+            if fpath != version_dir {
+                let tmp = pool_base.join(format!("{}-{}_tmp", mod_id, version));
+                let _ = std::fs::remove_dir_all(&tmp);
+                std::fs::rename(&fpath, &tmp).map_err(|e| e.to_string())?;
+                let _ = std::fs::remove_dir_all(&version_dir);
+                std::fs::rename(&tmp, &version_dir).map_err(|e| e.to_string())?;
+                return Ok((fname, version_dir));
+            }
+            let safe_name = mod_name.to_lowercase().replace([' ', '/', '\\', ':'], "-");
+            return Ok((safe_name, version_dir));
         }
     }
 
@@ -989,11 +1011,13 @@ async fn extract_to_pool(
 
     let folder_name: String;
     if let Some((fname, fpath)) = find_manifest_dir(&temp_dir) {
-        folder_name = fname;
         if fpath != temp_dir {
+            folder_name = fname;
             let _ = std::fs::remove_dir_all(&version_dir);
             std::fs::rename(&fpath, &version_dir).map_err(|e| e.to_string())?;
         } else {
+            let safe_name = mod_name.to_lowercase().replace([' ', '/', '\\', ':'], "-");
+            folder_name = safe_name;
             if version_dir.exists() {
                 std::fs::remove_dir_all(&version_dir).map_err(|e| e.to_string())?;
             }
@@ -1079,6 +1103,14 @@ pub async fn update_all_mods(
             .map_err(|e| e.to_string())?
             .ok_or_else(|| format!("Mod id={} not found in database", mod_id))?;
 
+        let old_folder_name = db
+            .get_profile_mods(&profile_id)
+            .await
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .find(|pm| pm.mod_id == *mod_id)
+            .and_then(|pm| pm.folder_name);
+
         let (folder_name, pool_dir) = extract_to_pool(
             &app,
             mod_id,
@@ -1092,6 +1124,14 @@ pub async fn update_all_mods(
         let link = std::path::Path::new(&folder).join(&folder_name);
         remove_symlink(&link)?;
         create_symlink_or_copy(&pool_dir, &link)?;
+
+        // Remove old symlink if folder_name changed (prevents orphaned entries)
+        if let Some(ref old_fname) = old_folder_name {
+            if old_fname != &folder_name {
+                let old_link = std::path::Path::new(&folder).join(old_fname);
+                let _ = remove_symlink(&old_link);
+            }
+        }
 
         db.add_profile_mod(
             &profile_id,
@@ -1216,6 +1256,15 @@ pub async fn update_mod(
     let target_version = version.as_deref().unwrap_or(&mod_entry.version_available);
     let dl_url = version_download_url.as_deref();
 
+    // Get old folder name to clean up orphaned symlinks if it changes
+    let old_folder_name = db
+        .get_profile_mods(&profile_id)
+        .await
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .find(|pm| pm.mod_id == mod_id)
+        .and_then(|pm| pm.folder_name);
+
     let (folder_name, pool_dir) = extract_to_pool(
         &app,
         &mod_id,
@@ -1229,6 +1278,14 @@ pub async fn update_mod(
     let link = std::path::Path::new(&folder).join(&folder_name);
     remove_symlink(&link)?;
     create_symlink_or_copy(&pool_dir, &link)?;
+
+    // Remove old symlink if folder_name changed (prevents orphaned entries)
+    if let Some(ref old_fname) = old_folder_name {
+        if old_fname != &folder_name {
+            let old_link = std::path::Path::new(&folder).join(old_fname);
+            let _ = remove_symlink(&old_link);
+        }
+    }
 
     db.add_profile_mod(
         &profile_id,
@@ -1417,6 +1474,18 @@ pub async fn scan_installed_mods(
         }
     }
 
+    // Remove profile entries for mods whose folders no longer exist on disk
+    if let Ok(profile_mods) = db.get_profile_mods(&profile_id).await {
+        for pm in &profile_mods {
+            if let Some(ref fname) = pm.folder_name {
+                let mod_path = std::path::Path::new(&folder).join(fname);
+                if !mod_path.exists() {
+                    let _ = db.remove_profile_mod(&profile_id, &pm.mod_id).await;
+                }
+            }
+        }
+    }
+
     db.update_is_installed_from_profile(&profile_id)
         .await
         .map_err(|e| e.to_string())?;
@@ -1518,6 +1587,18 @@ pub async fn run_scan_installed(app: &tauri::AppHandle) {
         }
     }
 
+    // Remove profile entries for mods whose folders no longer exist on disk
+    if let Ok(profile_mods) = db.get_profile_mods(&profile_id).await {
+        for pm in &profile_mods {
+            if let Some(ref fname) = pm.folder_name {
+                let mod_path = std::path::Path::new(&folder).join(fname);
+                if !mod_path.exists() {
+                    let _ = db.remove_profile_mod(&profile_id, &pm.mod_id).await;
+                }
+            }
+        }
+    }
+
     let _ = db.update_is_installed_from_profile(&profile_id).await;
     let _ = app.emit("mods-updated", ());
     println!(
@@ -1535,30 +1616,15 @@ pub async fn download_blueprint(
     blueprint_name: String,
     blueprint_data: String,
 ) -> Result<String, String> {
-    let safe_name: String = blueprint_name
-        .chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' || c == ' ' { c } else { '_' })
-        .collect();
-    let filename = format!("{}.blueprint", safe_name.trim());
-
-    let dest_dir = match find_blueprints_folder() {
-        Some(p) => std::path::PathBuf::from(p),
-        None => {
-            let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-            data_dir.join("blueprints")
-        }
-    };
-
-    std::fs::create_dir_all(&dest_dir).map_err(|e| e.to_string())?;
-    let filepath = dest_dir.join(&filename);
-
-    std::fs::write(&filepath, &blueprint_data).map_err(|e| e.to_string())?;
+    app.clipboard()
+        .write_text(&blueprint_data)
+        .map_err(|e| e.to_string())?;
 
     db.mark_blueprint_downloaded(&blueprint_id)
         .await
         .map_err(|e| e.to_string())?;
 
-    Ok(filepath.to_string_lossy().to_string())
+    Ok(blueprint_name)
 }
 
 #[tauri::command]

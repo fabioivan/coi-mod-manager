@@ -6,7 +6,7 @@ import {
 	RefreshCw,
 	Trash2,
 } from "lucide-react";
-import { useState } from "react";
+import { memo } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardFooter } from "@/components/ui/card";
@@ -56,7 +56,7 @@ const C = {
 	yellow: "#e5ca5f",
 };
 
-export function ModCard({
+export const ModCard = memo(function ModCard({
 	mod,
 	onUpdate,
 	onInstall,
@@ -66,7 +66,6 @@ export function ModCard({
 	onSelectMod,
 }: ModCardProps) {
 	const { t } = useTranslation();
-	const [hovered, setHovered] = useState(false);
 	const status = getModStatus(mod);
 	const tags = mod.category
 		? mod.category
@@ -96,21 +95,7 @@ export function ModCard({
 					onSelectMod(mod.id);
 				}
 			}}
-			onMouseEnter={() => setHovered(true)}
-			onMouseLeave={() => setHovered(false)}
-			className={cn(
-				"overflow-hidden cursor-default border-[#222] relative",
-				hovered && "cursor-pointer",
-			)}
-			style={{
-				backgroundColor: hovered ? "#4b4b4b" : C.grey,
-				boxShadow: hovered
-					? "0 4px 12px rgba(0,0,0,0.45)"
-					: "0 2px 6px rgba(0,0,0,0.3)",
-				transform: hovered ? "translateY(-2px)" : "none",
-				transition:
-					"transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease",
-			}}
+			className={cn("mod-card overflow-hidden border-[#222] relative")}
 		>
 			<div className="flex flex-row flex-1 overflow-hidden">
 				<div className="flex-shrink-0">
@@ -390,4 +375,4 @@ export function ModCard({
 			</CardFooter>
 		</Card>
 	);
-}
+});

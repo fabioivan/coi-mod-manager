@@ -72,6 +72,200 @@ body,
 	}
 }
 
+.mod-card {
+	background-color: #414141;
+	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+	transform: none;
+	transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.mod-card:hover {
+	background-color: #4b4b4b;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+	transform: translateY(-2px);
+	cursor: pointer;
+}
+
+/* ── Blueprint description — mirrors hub.coigame.com .description styles ── */
+
+.bp-description {
+	overflow-x: auto;
+	color: #f8f8f8;
+	font-size: 14px;
+	line-height: 1.6;
+}
+
+.bp-description h1 {
+	font-size: 2rem;
+	font-weight: 700;
+	color: #e5ca5f;
+	margin-top: 1.25rem;
+	margin-bottom: 0.5rem;
+	line-height: 1.2;
+}
+
+.bp-description h2 {
+	font-size: 1.75rem;
+	font-weight: 700;
+	color: #e5ca5f;
+	margin-top: 1.25rem;
+	margin-bottom: 0.5rem;
+	line-height: 1.2;
+}
+
+.bp-description h3 {
+	font-size: 1.4rem;
+	font-weight: 700;
+	color: #c6c6c6;
+	margin-top: 1rem;
+	margin-bottom: 0.5rem;
+	line-height: 1.2;
+}
+
+.bp-description h4 {
+	font-size: 1.2rem;
+	font-weight: 700;
+	color: #c6c6c6;
+	margin-top: 1rem;
+	margin-bottom: 0.5rem;
+}
+
+.bp-description h5,
+.bp-description h6 {
+	font-size: 1rem;
+	font-weight: 700;
+	color: #c6c6c6;
+	margin-top: 0.75rem;
+	margin-bottom: 0.5rem;
+}
+
+.bp-description p {
+	margin-top: 0;
+	margin-bottom: 1rem;
+}
+
+.bp-description ul,
+.bp-description ol {
+	padding-left: 2rem;
+	margin-top: 0;
+	margin-bottom: 1rem;
+}
+
+.bp-description ul {
+	list-style: disc;
+}
+
+.bp-description ol {
+	list-style: decimal;
+}
+
+.bp-description li {
+	display: list-item;
+	margin-bottom: 0.2rem;
+}
+
+.bp-description ul ul,
+.bp-description ol ol,
+.bp-description ul ol,
+.bp-description ol ul {
+	margin-bottom: 0;
+}
+
+.bp-description blockquote {
+	background: #2f2f2f;
+	border-left: 5px solid #e5ca5f;
+	padding: 0.5em 0.75em;
+	margin: 0 0 1em;
+	border-radius: 0 4px 4px 0;
+}
+
+.bp-description blockquote p {
+	margin: 0;
+}
+
+.bp-description a {
+	color: #e5ca5f;
+	text-decoration: underline;
+}
+
+.bp-description a:hover {
+	color: #fbf15f;
+}
+
+.bp-description strong,
+.bp-description b {
+	font-weight: 700;
+}
+
+.bp-description em,
+.bp-description i {
+	font-style: italic;
+}
+
+.bp-description code {
+	font-family: monospace;
+	font-size: 0.875em;
+	background: #1a1a1a;
+	padding: 1px 4px;
+	border-radius: 3px;
+}
+
+.bp-description pre {
+	background: #292929;
+	padding: 10px;
+	border-radius: 4px;
+	overflow-x: auto;
+	margin-bottom: 1rem;
+	font-size: 0.875em;
+}
+
+.bp-description pre code {
+	background: none;
+	padding: 0;
+}
+
+.bp-description table {
+	width: 100%;
+	border-collapse: collapse;
+	margin-bottom: 2em;
+	border: 4px solid #222222;
+	font-size: 13px;
+}
+
+.bp-description table th,
+.bp-description table td {
+	padding: 0.5em;
+	border: 1px solid #333;
+	text-align: left;
+}
+
+.bp-description table th {
+	white-space: nowrap;
+	background-color: #222222;
+	color: #e5ca5f;
+	font-weight: 700;
+}
+
+.bp-description table tr {
+	background-color: #2f2f2f;
+}
+
+.bp-description table tr:nth-of-type(2n) {
+	background-color: #292929;
+}
+
+.bp-description table tr:hover {
+	background-color: #414141;
+}
+
+.bp-description hr {
+	border: none;
+	border-top: 1px solid #414141;
+	margin: 1.5rem 0;
+}
+
+/* ── end bp-description ── */
+
 .sync-progress-bar {
 	position: absolute;
 	top: 0;

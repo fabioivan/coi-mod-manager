@@ -1,22 +1,24 @@
 import { invoke } from "@tauri-apps/api/core";
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import {
 	ArrowLeft,
 	ChevronLeft,
 	ChevronRight,
-	Copy,
-	Download,
+	ClipboardCopy,
+	ClipboardCheck,
 	ExternalLink,
 	Eye,
 	Loader2,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ScrollTopButton } from "@/components/ScrollTopButton";
+import { useScrollTop } from "@/hooks/useScrollTop";
 import type { Blueprint, BlueprintDetails } from "@/types/blueprint";
 
 interface BlueprintDetailProps {
 	blueprintId: string;
 	onBack: () => void;
+	onSelectAuthor: (author: string) => void;
 	allBlueprints: Blueprint[];
 }
 
@@ -34,6 +36,7 @@ const C = {
 export function BlueprintDetail({
 	blueprintId,
 	onBack,
+	onSelectAuthor,
 	allBlueprints,
 }: BlueprintDetailProps) {
 	const { t, i18n } = useTranslation();
@@ -45,8 +48,12 @@ export function BlueprintDetail({
 	const thumbRowRef = useRef<HTMLDivElement>(null);
 	const [downloading, setDownloading] = useState(false);
 	const [downloadPath, setDownloadPath] = useState<string | null>(null);
+	const { scrollRef, show: showScrollTop, scrollToTop } = useScrollTop();
 
-	const localBlueprint = allBlueprints.find((bp) => bp.id === blueprintId);
+	const localBlueprint = useMemo(
+		() => allBlueprints.find((bp) => bp.id === blueprintId),
+		[allBlueprints, blueprintId],
+	);
 	const bpUrl = localBlueprint?.url;
 
 	useEffect(() => {
@@ -104,27 +111,32 @@ export function BlueprintDetail({
 		);
 	}
 
-	const formattedDate = fallbackBp.updated_at
-		? new Date(fallbackBp.updated_at).toLocaleDateString(i18n.language, {
-				day: "numeric",
-				month: "short",
-				year: "numeric",
-			})
-		: null;
+	const formattedDate = useMemo(
+		() =>
+			fallbackBp?.updated_at
+				? new Date(fallbackBp.updated_at).toLocaleDateString(i18n.language, {
+						day: "numeric",
+						month: "short",
+						year: "numeric",
+					})
+				: null,
+		[fallbackBp?.updated_at, i18n.language],
+	);
 
-	const screenshots = details?.screenshots ?? [];
+	const screenshots = useMemo(() => details?.screenshots ?? [], [details?.screenshots]);
 
 	const handleDownload = async () => {
 		if (!bpUrl || !localBlueprint || !details?.blueprint_data) return;
 		setDownloading(true);
 		setDownloadPath(null);
 		try {
-			const path = await invoke<string>("download_blueprint", {
+			await invoke<string>("download_blueprint", {
 				blueprintId: localBlueprint.id,
 				blueprintName: localBlueprint.name,
 				blueprintData: details.blueprint_data,
 			});
-			setDownloadPath(path);
+			setDownloadPath("copied");
+			setTimeout(() => setDownloadPath(null), 2500);
 		} catch (err) {
 			console.error("Erro ao baixar blueprint:", err);
 			setError(String(err));
@@ -155,27 +167,31 @@ export function BlueprintDetail({
 				display: "flex",
 				flexDirection: "column",
 				minHeight: 0,
+				position: "relative",
 			}}
 		>
-			<div style={{ overflowY: "auto", flex: 1 }}>
-				{loading && (
-					<div
-						style={{
-							display: "flex",
-							alignItems: "center",
-							justifyContent: "center",
-							gap: "8px",
-							padding: "12px",
-							color: C.metaGrey,
-							fontSize: "13px",
-						}}
-					>
-						<Loader2 size={14} className="animate-spin" />
-						{t("common.loading")}
-					</div>
-				)}
-
-				<div style={{ padding: "24px", paddingTop: loading ? "0" : "24px" }}>
+			{loading && (
+				<div
+					style={{
+						position: "absolute",
+						inset: 0,
+						backgroundColor: "rgba(41, 41, 41, 0.5)",
+						display: "flex",
+						alignItems: "center",
+						justifyContent: "center",
+						flexDirection: "column",
+						gap: "12px",
+						color: C.lightGrey,
+						fontSize: "13px",
+						zIndex: 10,
+					}}
+				>
+					<Loader2 size={24} className="animate-spin" />
+					{t("common.loading")}
+				</div>
+			)}
+			<div ref={scrollRef} style={{ overflowY: "auto", flex: 1 }}>
+				<div style={{ padding: "24px" }}>
 					<button
 						type="button"
 						onClick={onBack}
@@ -268,6 +284,7 @@ export function BlueprintDetail({
 								<MetaItem
 									label={t("blueprintDetail.author")}
 									value={fallbackBp.author}
+									onValueClick={fallbackBp.author ? () => { onSelectAuthor(fallbackBp.author!); onBack(); } : undefined}
 								/>
 								<MetaItem
 									label={t("blueprintDetail.downloads")}
@@ -321,6 +338,7 @@ export function BlueprintDetail({
 									type="button"
 									disabled={downloading || !details?.blueprint_data}
 									onClick={handleDownload}
+									title={t("blueprintDetail.copy_tooltip")}
 									style={{
 										display: "inline-flex",
 										alignItems: "center",
@@ -338,60 +356,23 @@ export function BlueprintDetail({
 										border: "none",
 										cursor: downloading ? "default" : "pointer",
 										textTransform: "uppercase",
+										minWidth: "110px",
+										justifyContent: "center",
 									}}
 								>
 									{downloading ? (
 										<Loader2 size={14} className="animate-spin" />
+									) : downloadPath ? (
+										<ClipboardCheck size={14} />
 									) : (
-										<Download size={14} />
+										<ClipboardCopy size={14} />
 									)}
 									{downloading
 										? t("common.loading")
 										: downloadPath
-											? t("blueprintDetail.downloaded")
-											: t("blueprintDetail.download")}
+											? t("blueprintDetail.copied")
+											: t("blueprintDetail.copy")}
 								</button>
-
-								{downloadPath && (
-									<div
-										style={{
-											display: "flex",
-											alignItems: "center",
-											gap: "6px",
-											fontSize: "11px",
-											color: C.metaGrey,
-											maxWidth: "300px",
-										}}
-									>
-										<span
-											style={{
-												overflow: "hidden",
-												textOverflow: "ellipsis",
-												whiteSpace: "nowrap",
-												direction: "rtl",
-												textAlign: "left",
-											}}
-											title={downloadPath}
-										>
-											{downloadPath}
-										</span>
-										<button
-											type="button"
-											title="Copy path"
-											onClick={() => writeText(downloadPath)}
-											style={{
-												background: "none",
-												border: "none",
-												cursor: "pointer",
-												color: C.metaGrey,
-												padding: "2px",
-												flexShrink: 0,
-											}}
-										>
-											<Copy size={12} />
-										</button>
-									</div>
-								)}
 							</div>
 						</div>
 					</div>
@@ -627,11 +608,6 @@ export function BlueprintDetail({
 							<div
 								className="bp-description"
 								dangerouslySetInnerHTML={{ __html: details.description_html }}
-								style={{
-									color: C.lighterGrey,
-									fontSize: "14px",
-									lineHeight: 1.6,
-								}}
 							/>
 						) : (
 							<p
@@ -650,6 +626,7 @@ export function BlueprintDetail({
 						)}
 					</div>
 				</div>
+				<ScrollTopButton show={showScrollTop} onClick={scrollToTop} />
 			</div>
 
 			{/* Lightbox */}
@@ -680,11 +657,9 @@ export function BlueprintDetail({
 						src={lightboxImage}
 						alt="Full screenshot"
 						style={{
-							maxWidth: "92%",
-							maxHeight: "92%",
-							borderRadius: "6px",
-							boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
-							border: "1px solid #444",
+							width: "100%",
+							height: "100%",
+							objectFit: "contain",
 							display: "block",
 						}}
 					/>
@@ -716,7 +691,7 @@ export function BlueprintDetail({
 	);
 }
 
-function MetaItem({ label, value }: { label: string; value: string }) {
+function MetaItem({ label, value, onValueClick }: { label: string; value: string; onValueClick?: () => void }) {
 	return (
 		<div>
 			<div
@@ -729,9 +704,29 @@ function MetaItem({ label, value }: { label: string; value: string }) {
 			>
 				{label}
 			</div>
-			<div style={{ fontSize: "14px", color: C.lightGrey, fontWeight: 700 }}>
-				{value}
-			</div>
+			{onValueClick ? (
+				<button
+					type="button"
+					onClick={onValueClick}
+					style={{
+						fontSize: "14px",
+						color: C.yellow,
+						fontWeight: 700,
+						background: "none",
+						border: "none",
+						padding: 0,
+						cursor: "pointer",
+						textDecoration: "underline",
+						textUnderlineOffset: "3px",
+					}}
+				>
+					{value}
+				</button>
+			) : (
+				<div style={{ fontSize: "14px", color: C.lightGrey, fontWeight: 700 }}>
+					{value}
+				</div>
+			)}
 		</div>
 	);
 }

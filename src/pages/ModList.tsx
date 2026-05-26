@@ -1,8 +1,10 @@
-import { ChevronUp, Loader2, Search } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Loader2, Search } from "lucide-react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ModCard } from "@/components/ModCard";
+import { ScrollTopButton } from "@/components/ScrollTopButton";
 import { Button } from "@/components/ui/button";
+import { useScrollTop } from "@/hooks/useScrollTop";
 import type { SidebarFilters } from "@/types/filters";
 import { getModStatus, type Mod } from "@/types/mod";
 import { versionInRange } from "@/utils/version";
@@ -42,20 +44,7 @@ export function ModList({
 	const { t } = useTranslation();
 	const [search, setSearch] = useState("");
 	const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-	const [showScrollTop, setShowScrollTop] = useState(false);
-	const scrollRef = useRef<HTMLDivElement>(null);
-
-	useEffect(() => {
-		const el = scrollRef.current;
-		if (!el) return;
-		const onScroll = () => setShowScrollTop(el.scrollTop > 400);
-		el.addEventListener("scroll", onScroll, { passive: true });
-		return () => el.removeEventListener("scroll", onScroll);
-	}, []);
-
-	function scrollToTop() {
-		scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-	}
+	const { scrollRef, show: showScrollTop, scrollToTop } = useScrollTop();
 
 	const filtered = useMemo(() => {
 		return mods.filter((mod) => {
@@ -265,16 +254,7 @@ export function ModList({
 					</div>
 				)}
 
-				{showScrollTop && (
-					<Button
-						onClick={scrollToTop}
-						size="icon"
-						className="fixed bottom-6 right-6 w-10 h-10 rounded-full shadow-lg z-100"
-						title={t("modList.back_to_top")}
-					>
-						<ChevronUp size={20} />
-					</Button>
-				)}
+				<ScrollTopButton show={showScrollTop} onClick={scrollToTop} />
 			</div>
 		</div>
 	);
