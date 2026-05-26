@@ -15,8 +15,10 @@ interface TopBarProps {
 	onBlueprintSync: () => void;
 	blueprintSyncing: boolean;
 	loading: boolean;
-	view: "blueprints" | "mods" | "settings" | "details";
-	onViewChange: (v: "blueprints" | "mods" | "settings" | "details") => void;
+	view: "blueprints" | "mods" | "settings" | "details" | "blueprint-details";
+	onViewChange: (
+		v: "blueprints" | "mods" | "settings" | "details" | "blueprint-details",
+	) => void;
 	appUpdate?: UpdateInfo | null;
 	onInstallUpdate?: () => void;
 	activeProfile?: Profile | null;
@@ -157,9 +159,11 @@ export function TopBar({
 						{loading ? t("topBar.btn_syncing") : t("topBar.btn_sync")}
 					</Button>
 				)}
-				{view === "details" && (
+				{(view === "details" || view === "blueprint-details") && (
 					<Button
-						onClick={() => onViewChange("mods")}
+						onClick={() =>
+							onViewChange(view === "blueprint-details" ? "blueprints" : "mods")
+						}
 						title={t("topBar.tooltip_back")}
 						variant="ghost"
 						size="icon"

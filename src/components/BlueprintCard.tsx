@@ -1,90 +1,172 @@
-import { Download, Heart, ThumbsUp } from "lucide-react";
+import { Download, MessageCircle, ThumbsUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import type { Blueprint } from "@/types/blueprint";
 
 interface BlueprintCardProps {
 	blueprint: Blueprint;
+	onSelect?: (id: string) => void;
 }
 
-function timeAgo(
-	iso: string,
-	t: (key: string, options?: Record<string, unknown>) => string,
-): string {
-	const diff = Date.now() - new Date(iso).getTime();
-	const m = Math.floor(diff / 60000);
-	if (m < 1) return t("blueprintCard.time_now");
-	if (m < 60) return t("blueprintCard.time_m_ago", { count: m });
-	const h = Math.floor(m / 60);
-	if (h < 24) return t("blueprintCard.time_h_ago", { count: h });
-	const d = Math.floor(h / 24);
-	if (d < 30) return t("blueprintCard.time_d_ago", { count: d });
-	const mo = Math.floor(d / 30);
-	if (mo < 12) return t("blueprintCard.time_mo_ago", { count: mo });
-	return t("blueprintCard.time_y_ago", { count: Math.floor(mo / 12) });
+function formatDate(iso: string, locale: string): string {
+	try {
+		return new Date(iso).toLocaleDateString(locale, {
+			day: "numeric",
+			month: "short",
+			year: "numeric",
+		});
+	} catch {
+		return iso;
+	}
 }
 
-export function BlueprintCard({ blueprint }: BlueprintCardProps) {
-	const { t } = useTranslation();
+export function BlueprintCard({ blueprint, onSelect }: BlueprintCardProps) {
+	const { t, i18n } = useTranslation();
 
 	return (
-		<Card className="bg-[#292929] border-[#222222] overflow-hidden cursor-default">
-			<div>
-				<div className="aspect-video relative overflow-hidden bg-[#222]">
-					{blueprint.thumbnail ? (
-						<img
-							src={blueprint.thumbnail}
-							alt={blueprint.name}
-							className="object-cover w-full h-full"
-						/>
-					) : (
-						<div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
-							—
-						</div>
-					)}
-				</div>
+		<Card
+			onClick={() => onSelect?.(blueprint.id)}
+			style={{
+				background: "#282828",
+				border: "1px solid #1e1e1e",
+				borderRadius: "8px",
+				overflow: "hidden",
+				display: "flex",
+				flexDirection: "column",
+				cursor: onSelect ? "pointer" : "default",
+				transition: "border-color 0.15s",
+			}}
+		>
+			{/* Thumbnail */}
+			<div
+				style={{
+					aspectRatio: "16/9",
+					background: "#1a1a1a",
+					overflow: "hidden",
+				}}
+			>
+				{blueprint.thumbnail ? (
+					<img
+						src={blueprint.thumbnail}
+						alt={blueprint.name}
+						style={{
+							width: "100%",
+							height: "100%",
+							objectFit: "cover",
+							display: "block",
+						}}
+					/>
+				) : (
+					<div
+						style={{
+							width: "100%",
+							height: "100%",
+							display: "flex",
+							alignItems: "center",
+							justifyContent: "center",
+							color: "#555",
+							fontSize: "11px",
+						}}
+					>
+						—
+					</div>
+				)}
 			</div>
-			<div className="p-3 space-y-1">
-				<h3 className="font-semibold text-sm truncate text-foreground">
+
+			{/* Info */}
+			<div style={{ padding: "10px 12px 6px" }}>
+				<h3
+					style={{
+						fontWeight: 700,
+						fontSize: "13px",
+						color: "#e8e8e8",
+						margin: 0,
+						overflow: "hidden",
+						textOverflow: "ellipsis",
+						whiteSpace: "nowrap",
+					}}
+				>
 					{blueprint.name}
 				</h3>
-				{blueprint.author && (
-					<p className="text-xs text-muted-foreground truncate">
-						{t("blueprintCard.by_author", { author: blueprint.author })}
-					</p>
-				)}
-				<p className="text-xs text-muted-foreground">
-					{blueprint.updated_at
-						? timeAgo(blueprint.updated_at, t)
-						: t("blueprintCard.no_date")}
+				<p
+					style={{
+						fontSize: "11px",
+						color: "#888",
+						margin: "3px 0 0",
+						overflow: "hidden",
+						textOverflow: "ellipsis",
+						whiteSpace: "nowrap",
+					}}
+				>
+					{blueprint.author
+						? `${t("blueprintCard.by_author", { author: blueprint.author })}${
+								blueprint.updated_at
+									? ` on ${formatDate(blueprint.updated_at, i18n.language)}`
+									: ""
+							}`
+						: blueprint.updated_at
+							? formatDate(blueprint.updated_at, i18n.language)
+							: t("blueprintCard.no_date")}
 				</p>
 			</div>
-			<div className="p-3 pt-0 flex justify-between items-center gap-2">
-				<div className="flex gap-3 text-xs text-muted-foreground">
-					{blueprint.downloads > 0 && (
-						<span className="flex items-center gap-1">
-							<Download size={11} />
-							{blueprint.downloads.toLocaleString()}
-						</span>
-					)}
-					{blueprint.favorites > 0 && (
-						<span className="flex items-center gap-1">
-							<Heart size={11} />
-							{blueprint.favorites}
-						</span>
-					)}
-				</div>
+
+			{/* Stats */}
+			<div
+				style={{
+					display: "flex",
+					alignItems: "center",
+					gap: "14px",
+					padding: "7px 12px 10px",
+					borderTop: "1px solid #222",
+					marginTop: "4px",
+				}}
+			>
+				{blueprint.downloads > 0 && (
+					<StatItem
+						icon={<Download size={13} />}
+						value={blueprint.downloads.toLocaleString()}
+					/>
+				)}
+				{blueprint.favorites > 0 && (
+					<StatItem
+						icon={<MessageCircle size={13} />}
+						value={String(blueprint.favorites)}
+					/>
+				)}
 				{blueprint.approval_pct >= 0 && (
-					<Badge
-						variant="secondary"
-						className="flex items-center gap-1 text-[11px]"
-					>
-						<ThumbsUp size={10} />
-						{blueprint.approval_pct}%
-					</Badge>
+					<StatItem
+						icon={<ThumbsUp size={13} />}
+						value={`${blueprint.approval_pct}%`}
+						style={{ marginLeft: "auto" }}
+					/>
 				)}
 			</div>
 		</Card>
+	);
+}
+
+function StatItem({
+	icon,
+	value,
+	style,
+}: {
+	icon: React.ReactNode;
+	value: string;
+	style?: React.CSSProperties;
+}) {
+	return (
+		<span
+			style={{
+				display: "flex",
+				alignItems: "center",
+				gap: "4px",
+				fontSize: "11px",
+				color: "#999",
+				...style,
+			}}
+		>
+			{icon}
+			{value}
+		</span>
 	);
 }

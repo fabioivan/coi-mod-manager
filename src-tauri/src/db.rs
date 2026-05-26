@@ -536,6 +536,15 @@ impl Database {
         Ok(blueprints)
     }
 
+    pub async fn mark_blueprint_downloaded(&self, id: &str) -> Result<()> {
+        let conn = self.0.lock().await;
+        conn.execute(
+            "UPDATE blueprints SET is_downloaded = 1 WHERE id = ?1",
+            params![id],
+        )?;
+        Ok(())
+    }
+
     pub async fn upsert_blueprint(&self, bp: &Blueprint) -> Result<()> {
         let conn = self.0.lock().await;
         conn.execute(

@@ -3,13 +3,14 @@ import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChangelogModal } from "@/components/ChangelogModal";
+import { NavSidebar } from "@/components/NavSidebar";
 import { Sidebar } from "@/components/Sidebar";
 import { StatusBar } from "@/components/StatusBar";
 import { TopBar } from "@/components/TopBar";
 import { UpdateModal } from "@/components/UpdateModal";
-import { NavSidebar } from "@/components/NavSidebar";
 import { Toaster } from "@/components/ui/toaster";
 import { useToast } from "@/hooks/use-toast";
+import { BlueprintDetail } from "@/pages/BlueprintDetail";
 import { BlueprintList } from "@/pages/BlueprintList";
 import { ModDetail } from "@/pages/ModDetail";
 import { ModList } from "@/pages/ModList";
@@ -62,7 +63,12 @@ function translateError(msg: string, t: (key: string) => string): string {
 	return msg;
 }
 
-type TabView = "blueprints" | "mods" | "settings" | "details";
+type TabView =
+	| "blueprints"
+	| "mods"
+	| "settings"
+	| "details"
+	| "blueprint-details";
 
 export default function App() {
 	const { i18n, t } = useTranslation();
@@ -74,6 +80,9 @@ export default function App() {
 	const [installingIds, setInstallingIds] = useState<Set<string>>(new Set());
 	const [view, setView] = useState<TabView>("blueprints");
 	const [selectedModId, setSelectedModId] = useState<string | null>(null);
+	const [selectedBlueprintId, setSelectedBlueprintId] = useState<string | null>(
+		null,
+	);
 	const [appUpdate, setAppUpdate] = useState<{
 		version: string;
 		notes?: string;
@@ -470,7 +479,19 @@ export default function App() {
 					}}
 				>
 					{view === "blueprints" ? (
-						<BlueprintList blueprints={blueprints} />
+						<BlueprintList
+							blueprints={blueprints}
+							onSelectBlueprint={(id) => {
+								setSelectedBlueprintId(id);
+								setView("blueprint-details");
+							}}
+						/>
+					) : view === "blueprint-details" && selectedBlueprintId ? (
+						<BlueprintDetail
+							blueprintId={selectedBlueprintId}
+							onBack={() => setView("blueprints")}
+							allBlueprints={blueprints}
+						/>
 					) : view === "mods" ? (
 						<ModList
 							mods={sortedMods}

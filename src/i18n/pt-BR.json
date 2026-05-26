@@ -227,6 +227,19 @@
 		"blueprints_count": "{{count}} blueprint",
 		"blueprints_count_plural": "{{count}} blueprints"
 	},
+	"blueprintDetail": {
+		"title": "Detalhes do Blueprint",
+		"author": "Autor",
+		"downloads": "Downloads",
+		"favorites": "Favoritos",
+		"vote_score": "Pontuação",
+		"updated": "Atualizado em",
+		"view_on_hub": "Ver no Hub",
+		"download": "Download",
+		"description": "Descrição",
+		"no_description": "Nenhuma descrição disponível.",
+		"downloaded": "Baixado!"
+	},
 	"blueprintCard": {
 		"by_author": "por {{author}}",
 		"time_now": "agora",

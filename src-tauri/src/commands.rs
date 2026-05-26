@@ -788,6 +788,13 @@ fn find_mods_folder() -> Option<String> {
     }
 }
 
+fn find_blueprints_folder() -> Option<String> {
+    let mods = find_mods_folder()?;
+    let p = std::path::Path::new(&mods);
+    let parent = p.parent()?;
+    Some(parent.join("Blueprints").to_string_lossy().into_owned())
+}
+
 #[tauri::command]
 pub async fn get_mods(db: State<'_, Database>) -> Result<Vec<Mod>, String> {
     db.get_all_mods().await.map_err(|e| e.to_string())
@@ -1518,6 +1525,51 @@ pub async fn run_scan_installed(app: &tauri::AppHandle) {
         found_ids.len(),
         all_mods.len()
     );
+}
+
+#[tauri::command]
+pub async fn download_blueprint(
+    app: tauri::AppHandle,
+    db: State<'_, Database>,
+    blueprint_id: String,
+    blueprint_name: String,
+    blueprint_data: String,
+) -> Result<String, String> {
+    let safe_name: String = blueprint_name
+        .chars()
+        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' || c == ' ' { c } else { '_' })
+        .collect();
+    let filename = format!("{}.blueprint", safe_name.trim());
+
+    let dest_dir = match find_blueprints_folder() {
+        Some(p) => std::path::PathBuf::from(p),
+        None => {
+            let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+            data_dir.join("blueprints")
+        }
+    };
+
+    std::fs::create_dir_all(&dest_dir).map_err(|e| e.to_string())?;
+    let filepath = dest_dir.join(&filename);
+
+    std::fs::write(&filepath, &blueprint_data).map_err(|e| e.to_string())?;
+
+    db.mark_blueprint_downloaded(&blueprint_id)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(filepath.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub async fn get_blueprint_details(
+    url: String,
+) -> Result<crate::blueprint_scraper::BlueprintDetails, String> {
+    let client = reqwest::Client::builder()
+        .user_agent("CoI-Mod-Manager/1.0")
+        .build()
+        .map_err(|e| e.to_string())?;
+    crate::blueprint_scraper::scrape_blueprint_details(&client, &url).await
 }
 
 #[tauri::command]
