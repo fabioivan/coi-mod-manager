@@ -35,9 +35,12 @@ fn is_game_running() -> bool {
     for name in &names {
         #[cfg(target_os = "windows")]
         {
+            use std::os::windows::process::CommandExt;
             use std::process::Command;
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
             if let Ok(out) = Command::new("tasklist")
                 .args(["/FI", &format!("IMAGENAME eq {}", name), "/NH"])
+                .creation_flags(CREATE_NO_WINDOW)
                 .output()
             {
                 let s = String::from_utf8_lossy(&out.stdout);
@@ -397,11 +400,10 @@ pub async fn import_profile(
             .map_err(|e| e.to_string())?;
 
         let (folder_name, pool_dir) =
-            extract_to_pool(&app, &em.id, &em.name, &em.version, &em.url, None).await?;
+            extract_to_pool(&app, &em.id, &em.name, &em.url, None, None).await?;
 
         let link = std::path::Path::new(&folder).join(&folder_name);
-        remove_symlink(&link)?;
-        create_symlink_or_copy(&pool_dir, &link)?;
+        update_mod_link(&pool_dir, &link)?;
 
         db.add_profile_mod(
             &profile_id,
@@ -478,6 +480,23 @@ fn copy_dir_all(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result
     Ok(())
 }
 
+/// Merge all files from `src` into `dst`. Overwrites existing mod files but preserves
+/// any files in `dst` not present in `src` (user saves, configs created during gameplay).
+fn merge_into_dir(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(dst)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let src_path = entry.path();
+        let dst_path = dst.join(entry.file_name());
+        if src_path.is_dir() {
+            merge_into_dir(&src_path, &dst_path)?;
+        } else {
+            std::fs::copy(&src_path, &dst_path)?;
+        }
+    }
+    Ok(())
+}
+
 /// Try to create a directory symlink from `link` → `target`.
 /// If symlink creation fails (e.g. Windows without Developer Mode / admin rights),
 /// fall back to copying the directory tree so regular users are not blocked.
@@ -515,6 +534,26 @@ fn is_mod_directory(path: &std::path::Path) -> bool {
         }
     }
     false
+}
+
+/// Update the link in the mods folder to reflect an updated pool_dir.
+/// For symlinks: no-op if already pointing at pool_dir (pool was merged in-place).
+/// For copy-fallback dirs: merges updated mod files in without deleting user saves/configs.
+fn update_mod_link(pool_dir: &std::path::Path, link: &std::path::Path) -> Result<(), String> {
+    if link.is_symlink() {
+        let current = std::fs::read_link(link).ok();
+        if current.as_deref() != Some(pool_dir) {
+            remove_symlink(link)?;
+            create_symlink_or_copy(pool_dir, link)?;
+        }
+        // Already pointing at pool_dir — pool was updated in-place, nothing to do.
+    } else if link.is_dir() {
+        merge_into_dir(pool_dir, link)
+            .map_err(|e| format!("Failed to update mod files: {}", e))?;
+    } else {
+        create_symlink_or_copy(pool_dir, link)?;
+    }
+    Ok(())
 }
 
 fn remove_symlink(link: &std::path::Path) -> Result<(), String> {
@@ -956,27 +995,13 @@ async fn extract_to_pool(
     app: &tauri::AppHandle,
     mod_id: &str,
     mod_name: &str,
-    version: &str,
     mod_page_url: &str,
     version_download_url: Option<&str>,
+    existing_folder_name: Option<&str>,
 ) -> Result<(String, std::path::PathBuf), String> {
     let pool_base = get_pool_base(app)?;
-    let version_dir = pool_base.join(format!("{}-{}", mod_id, version));
-
-    if version_dir.join("manifest.json").exists() || version_dir.is_dir() {
-        if let Some((fname, fpath)) = find_manifest_dir(&version_dir) {
-            if fpath != version_dir {
-                let tmp = pool_base.join(format!("{}-{}_tmp", mod_id, version));
-                let _ = std::fs::remove_dir_all(&tmp);
-                std::fs::rename(&fpath, &tmp).map_err(|e| e.to_string())?;
-                let _ = std::fs::remove_dir_all(&version_dir);
-                std::fs::rename(&tmp, &version_dir).map_err(|e| e.to_string())?;
-                return Ok((fname, version_dir));
-            }
-            let safe_name = mod_name.to_lowercase().replace([' ', '/', '\\', ':'], "-");
-            return Ok((safe_name, version_dir));
-        }
-    }
+    // Stable pool dir — not versioned. Preserves user-created files across updates.
+    let pool_dir = pool_base.join(mod_id);
 
     let zip_path = std::env::temp_dir().join(format!("coi_dl_{}.zip", mod_id));
     let dl_url = match version_download_url {
@@ -985,83 +1010,54 @@ async fn extract_to_pool(
     };
     download_zip_to_file(&dl_url, &zip_path).await?;
 
-    let file = std::fs::File::open(&zip_path).map_err(|e| e.to_string())?;
-    let mut archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
-
     let temp_dir = std::env::temp_dir().join(format!("coi_extract_{}", mod_id));
     let _ = std::fs::remove_dir_all(&temp_dir);
     std::fs::create_dir_all(&temp_dir).map_err(|e| e.to_string())?;
-    archive.extract(&temp_dir).map_err(|e| e.to_string())?;
-    std::mem::drop(archive);
+
+    {
+        let file = std::fs::File::open(&zip_path).map_err(|e| e.to_string())?;
+        let mut archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
+        archive.extract(&temp_dir).map_err(|e| e.to_string())?;
+    }
     let _ = std::fs::remove_file(&zip_path);
 
-    // Copy user-generated files (settings, saves, etc.) from old versions
-    if let Ok(entries) = std::fs::read_dir(&pool_base) {
-        for entry in entries.flatten() {
-            let dir_name = entry.file_name();
-            let name = dir_name.to_string_lossy();
-            if name.starts_with(&format!("{}-", mod_id)) && entry.path().is_dir() {
-                let old_dir = entry.path();
-                if old_dir != version_dir {
-                    let _ = copy_extra_files(&old_dir, &temp_dir);
-                }
-            }
+    // Find the mod root: the subfolder containing manifest.json, or temp_dir itself.
+    let (zip_folder_name, zip_mod_root) = match find_manifest_dir(&temp_dir) {
+        Some((name, path)) => (name, path),
+        None => {
+            let safe = mod_name.to_lowercase().replace([' ', '/', '\\', ':'], "-");
+            (safe, temp_dir.clone())
         }
-    }
+    };
 
-    let folder_name: String;
-    if let Some((fname, fpath)) = find_manifest_dir(&temp_dir) {
-        if fpath != temp_dir {
-            folder_name = fname;
-            let _ = std::fs::remove_dir_all(&version_dir);
-            std::fs::rename(&fpath, &version_dir).map_err(|e| e.to_string())?;
-        } else {
-            let safe_name = mod_name.to_lowercase().replace([' ', '/', '\\', ':'], "-");
-            folder_name = safe_name;
-            if version_dir.exists() {
-                std::fs::remove_dir_all(&version_dir).map_err(|e| e.to_string())?;
-            }
-            std::fs::rename(&temp_dir, &version_dir).map_err(|e| e.to_string())?;
-        }
-    } else {
-        let safe_name = mod_name.to_lowercase().replace([' ', '/', '\\', ':'], "-");
-        let wrapped = version_dir.join(&safe_name);
-        std::fs::create_dir_all(&wrapped).map_err(|e| e.to_string())?;
-        for entry in std::fs::read_dir(&temp_dir).map_err(|e| e.to_string())? {
-            let e = entry.map_err(|e| e.to_string())?;
-            let src = e.path();
-            let dst = wrapped.join(e.file_name());
-            if src.is_dir() {
-                std::fs::rename(&src, &dst).map_err(|e| e.to_string())?;
-            } else {
-                std::fs::copy(&src, &dst).map_err(|e| e.to_string())?;
-            }
-        }
-        folder_name = safe_name;
-    }
+    // Merge new mod files into the stable pool dir. Existing files not present in the
+    // zip (user saves, configs created during gameplay) are preserved untouched.
+    std::fs::create_dir_all(&pool_dir).map_err(|e| e.to_string())?;
+    merge_into_dir(&zip_mod_root, &pool_dir)
+        .map_err(|e| format!("Failed to update pool: {}", e))?;
 
     let _ = std::fs::remove_dir_all(&temp_dir);
-    Ok((folder_name, version_dir))
-}
 
-/// Remove old pool version directories for a given mod, keeping only the current version.
-fn cleanup_old_pool_versions(pool_base: &std::path::Path, mod_id: &str, current_version: &str) {
-    let prefix = format!("{}-", mod_id);
-    let current_dir_name = format!("{}-{}", mod_id, current_version);
-    if let Ok(entries) = std::fs::read_dir(pool_base) {
+    // On first install derive folder_name from the zip; on updates keep the stored name
+    // so the game's mod reference (the folder name in mods_folder) never changes.
+    let folder_name = existing_folder_name
+        .map(|s| s.to_string())
+        .unwrap_or(zip_folder_name);
+
+    // Remove legacy versioned pool dirs left over from earlier app versions.
+    if let Ok(entries) = std::fs::read_dir(&pool_base) {
+        let prefix = format!("{}-", mod_id);
         for entry in entries.flatten() {
-            let path = entry.path();
-            if !path.is_dir() {
-                continue;
-            }
-            let dir_name = entry.file_name();
-            let name = dir_name.to_string_lossy();
-            if name.starts_with(&prefix) && name.as_ref() != current_dir_name {
-                let _ = std::fs::remove_dir_all(&path);
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name.starts_with(&prefix) && entry.path().is_dir() {
+                let _ = std::fs::remove_dir_all(entry.path());
             }
         }
     }
+
+    Ok((folder_name, pool_dir))
 }
+
 
 async fn get_active_profile_id(db: &Database) -> Result<String, String> {
     db.get_active_profile_id()
@@ -1115,23 +1111,14 @@ pub async fn update_all_mods(
             &app,
             mod_id,
             &mod_entry.name,
-            &mod_entry.version_available,
             &mod_page_url,
             None,
+            old_folder_name.as_deref(),
         )
         .await?;
 
         let link = std::path::Path::new(&folder).join(&folder_name);
-        remove_symlink(&link)?;
-        create_symlink_or_copy(&pool_dir, &link)?;
-
-        // Remove old symlink if folder_name changed (prevents orphaned entries)
-        if let Some(ref old_fname) = old_folder_name {
-            if old_fname != &folder_name {
-                let old_link = std::path::Path::new(&folder).join(old_fname);
-                let _ = remove_symlink(&old_link);
-            }
-        }
+        update_mod_link(&pool_dir, &link)?;
 
         db.add_profile_mod(
             &profile_id,
@@ -1142,11 +1129,6 @@ pub async fn update_all_mods(
         )
         .await
         .map_err(|e| e.to_string())?;
-
-        // Clean up old version pool directories
-        if let Some(pool_base) = pool_dir.parent() {
-            cleanup_old_pool_versions(pool_base, mod_id, &mod_entry.version_available);
-        }
     }
 
     if count > 0 {
@@ -1196,15 +1178,14 @@ pub async fn install_mod(
         &app,
         &mod_id,
         &mod_entry.name,
-        target_version,
         &mod_page_url,
         dl_url,
+        None,
     )
     .await?;
 
     let link = std::path::Path::new(&folder).join(&folder_name);
-    remove_symlink(&link)?;
-    create_symlink_or_copy(&pool_dir, &link)?;
+    update_mod_link(&pool_dir, &link)?;
 
     db.add_profile_mod(
         &profile_id,
@@ -1269,23 +1250,14 @@ pub async fn update_mod(
         &app,
         &mod_id,
         &mod_entry.name,
-        target_version,
         &mod_page_url,
         dl_url,
+        old_folder_name.as_deref(),
     )
     .await?;
 
     let link = std::path::Path::new(&folder).join(&folder_name);
-    remove_symlink(&link)?;
-    create_symlink_or_copy(&pool_dir, &link)?;
-
-    // Remove old symlink if folder_name changed (prevents orphaned entries)
-    if let Some(ref old_fname) = old_folder_name {
-        if old_fname != &folder_name {
-            let old_link = std::path::Path::new(&folder).join(old_fname);
-            let _ = remove_symlink(&old_link);
-        }
-    }
+    update_mod_link(&pool_dir, &link)?;
 
     db.add_profile_mod(
         &profile_id,
@@ -1296,11 +1268,6 @@ pub async fn update_mod(
     )
     .await
     .map_err(|e| e.to_string())?;
-
-    // Clean up old version pool directories
-    if let Some(pool_base) = pool_dir.parent() {
-        cleanup_old_pool_versions(pool_base, &mod_id, target_version);
-    }
 
     db.update_is_installed_from_profile(&profile_id)
         .await
@@ -1453,7 +1420,7 @@ pub async fn scan_installed_mods(
         });
 
         if let Some(m) = matched {
-            let pool_dir = pool_base.join(format!("{}-{}", m.id, version));
+            let pool_dir = pool_base.join(&m.id);
             let actual_folder = entry.file_name().to_string_lossy().to_string();
             let pool_path_str = if pool_dir.exists() {
                 Some(pool_dir.to_str().unwrap_or("").to_string())
@@ -1567,7 +1534,7 @@ pub async fn run_scan_installed(app: &tauri::AppHandle) {
         });
 
         if let Some(m) = matched {
-            let pool_dir = pool_base.join(format!("{}-{}", m.id, version));
+            let pool_dir = pool_base.join(&m.id);
             let actual_folder = entry.file_name().to_string_lossy().to_string();
             let pool_path_str = if pool_dir.exists() {
                 Some(pool_dir.to_str().unwrap_or("").to_string())

@@ -20,549 +20,564 @@ import { type SidebarFilters, SORT_OPTIONS } from "@/types/filters";
 import { getModStatus, type Mod } from "@/types/mod";
 import type { Profile } from "@/types/profile";
 import {
-	compareVersions,
-	expandGameVersionRange,
-	versionInRange,
+  compareVersions,
+  expandGameVersionRange,
+  versionInRange,
 } from "@/utils/version";
 
-function splitTags(category: string): string[] {
-	return category
-		.split(",")
-		.map((t) => t.trim())
-		.filter(Boolean);
+function splitTags(category: string | null | undefined): string[] {
+  if (!category) return [];
+  return category
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
 }
 
 const ERROR_TRANSLATIONS: Record<string, string> = {
-	"Mods folder not configured. Go to Settings.":
-		"error.mods_folder_not_configured",
-	"Mods folder not configured": "error.mods_folder_not_configured",
-	"Folder not found:": "error.folder_not_found",
-	"Mod id=": "error.mod_not_found",
-	"Failed to remove": "error.failed_to_remove",
-	"Mod folder": "error.mod_folder_not_found",
-	"Download link not found at": "error.download_link_not_found",
-	"Failed to access": "error.failed_to_access",
-	"Failed to load mod": "error.failed_to_load_mod",
-	"Selector error:": "error.selector_error",
-	"Invalid mod URL": "error.invalid_mod_url",
-	"Game is running.": "error.game_is_running",
-	"Permission denied": "error.permission_denied",
-	"Access denied": "error.permission_denied",
-	"Access is denied": "error.permission_denied",
-	"os error 5": "error.permission_denied",
-	"This mod has no dependencies.": "",
+  "Mods folder not configured. Go to Settings.":
+    "error.mods_folder_not_configured",
+  "Mods folder not configured": "error.mods_folder_not_configured",
+  "Folder not found:": "error.folder_not_found",
+  "Mod id=": "error.mod_not_found",
+  "Failed to remove": "error.failed_to_remove",
+  "Mod folder": "error.mod_folder_not_found",
+  "Download link not found at": "error.download_link_not_found",
+  "Failed to access": "error.failed_to_access",
+  "Failed to load mod": "error.failed_to_load_mod",
+  "Selector error:": "error.selector_error",
+  "Invalid mod URL": "error.invalid_mod_url",
+  "Game is running.": "error.game_is_running",
+  "Permission denied": "error.permission_denied",
+  "Access denied": "error.permission_denied",
+  "Access is denied": "error.permission_denied",
+  "os error 5": "error.permission_denied",
+  "This mod has no dependencies.": "",
 };
 
 function translateError(msg: string, t: (key: string) => string): string {
-	for (const [key, i18nKey] of Object.entries(ERROR_TRANSLATIONS)) {
-		if (msg.startsWith(key)) {
-			if (!i18nKey) return msg;
-			return t(i18nKey);
-		}
-	}
-	return msg;
+  for (const [key, i18nKey] of Object.entries(ERROR_TRANSLATIONS)) {
+    if (msg.startsWith(key)) {
+      if (!i18nKey) return msg;
+      return t(i18nKey);
+    }
+  }
+  return msg;
 }
 
 type TabView =
-	| "blueprints"
-	| "mods"
-	| "settings"
-	| "details"
-	| "blueprint-details";
+  | "blueprints"
+  | "mods"
+  | "settings"
+  | "details"
+  | "blueprint-details";
 
 export default function App() {
-	const { i18n, t } = useTranslation();
-	const { toast } = useToast();
-	const [mods, setMods] = useState<Mod[]>([]);
-	const [blueprints, setBlueprints] = useState<Blueprint[]>([]);
-	const [syncing, setSyncing] = useState(false);
-	const [blueprintSyncing, setBlueprintSyncing] = useState(false);
-	const [installingIds, setInstallingIds] = useState<Set<string>>(new Set());
-	const [view, setView] = useState<TabView>("blueprints");
-	const [selectedModId, setSelectedModId] = useState<string | null>(null);
-	const [selectedBlueprintId, setSelectedBlueprintId] = useState<string | null>(
-		null,
-	);
-	const [appUpdate, setAppUpdate] = useState<{
-		version: string;
-		notes?: string;
-	} | null>(null);
-	const [showUpdateModal, setShowUpdateModal] = useState(false);
-	const [showChangelog, setShowChangelog] = useState(false);
-	const [activeProfile, setActiveProfile] = useState<Profile | null>(null);
-	const [savedGameVersion, setSavedGameVersion] = useState<string | null>(null);
-	const [changelogVersion, setChangelogVersion] = useState<string | null>(null);
-	const [appVersion, setAppVersion] = useState("");
+  const { i18n, t } = useTranslation();
+  const { toast } = useToast();
+  const [mods, setMods] = useState<Mod[]>([]);
+  const [blueprints, setBlueprints] = useState<Blueprint[]>([]);
+  const [syncing, setSyncing] = useState(false);
+  const [blueprintSyncing, setBlueprintSyncing] = useState(false);
+  const [installingIds, setInstallingIds] = useState<Set<string>>(new Set());
+  const [view, setView] = useState<TabView>("blueprints");
+  const [selectedModId, setSelectedModId] = useState<string | null>(null);
+  const [selectedBlueprintId, setSelectedBlueprintId] = useState<string | null>(
+    null,
+  );
+  const [appUpdate, setAppUpdate] = useState<{
+    version: string;
+    notes?: string;
+  } | null>(null);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [showChangelog, setShowChangelog] = useState(false);
+  const [activeProfile, setActiveProfile] = useState<Profile | null>(null);
+  const [savedGameVersion, setSavedGameVersion] = useState<string | null>(null);
+  const [changelogVersion, setChangelogVersion] = useState<string | null>(null);
+  const [appVersion, setAppVersion] = useState("");
 
-	const [blueprintFilters, setBlueprintFilters] = useState<BlueprintListFilters>({
-		search: "",
-		orderBy: "popularity",
-		timeRange: "all-time",
-		author: null,
-	});
+  const [blueprintFilters, setBlueprintFilters] = useState<BlueprintListFilters>({
+    search: "",
+    orderBy: "popularity",
+    timeRange: "all-time",
+    author: null,
+  });
 
-	const [filters, setFilters] = useState<SidebarFilters>({
-		sortBy: "updated",
-		timeRange: "all-time",
-		selectedTag: null,
-		devstates: [],
-		gameVersion: "",
-	});
+  const [filters, setFilters] = useState<SidebarFilters>({
+    sortBy: "updated",
+    timeRange: "all-time",
+    selectedTag: null,
+    devstates: [],
+    gameVersion: "",
+  });
 
-	const showToast = useCallback(
-		(message: string, type: "info" | "error" | "success" = "info") => {
-			toast({
-				description: message,
-				variant:
-					type === "error"
-						? "destructive"
-						: type === "success"
-							? "success"
-							: "default",
-				duration: type === "error" ? undefined : 5000,
-			});
-		},
-		[toast],
-	);
+  const showToast = useCallback(
+    (message: string, type: "info" | "error" | "success" = "info") => {
+      toast({
+        description: message,
+        variant:
+          type === "error"
+            ? "destructive"
+            : type === "success"
+              ? "success"
+              : "default",
+        duration: type === "error" ? undefined : 5000,
+      });
+    },
+    [toast],
+  );
 
-	const loadProfiles = useCallback(async () => {
-		try {
-			const profile = await invoke<Profile | null>("get_active_profile");
-			setActiveProfile(profile);
-		} catch (_) {}
-	}, []);
+  const loadProfiles = useCallback(async () => {
+    try {
+      const profile = await invoke<Profile | null>("get_active_profile");
+      setActiveProfile(profile);
+    } catch (_) { }
+  }, []);
 
-	useEffect(() => {
-		let unlisten: (() => void) | undefined;
-		let unlistenBlueprints: (() => void) | undefined;
+  useEffect(() => {
+    let cancelled = false;
+    let unlistens: Array<() => void> = [];
 
-		async function init() {
-			try {
-				const lang = await invoke<string | null>("get_setting", {
-					key: "language",
-				});
-				if (lang) i18n.changeLanguage(lang);
-			} catch (_) {}
+    async function init() {
+      try {
+        const lang = await invoke<string | null>("get_setting", { key: "language" });
+        if (lang) i18n.changeLanguage(lang);
+      } catch (_) {}
 
-			try {
-				const gv = await invoke<string | null>("get_setting", {
-					key: "game_version",
-				});
-				if (gv) {
-					setSavedGameVersion(gv);
-				}
-			} catch (_) {}
+      try {
+        const gv = await invoke<string | null>("get_setting", { key: "game_version" });
+        if (gv) setSavedGameVersion(gv);
+      } catch (_) {}
 
-			try {
-				const cv = await invoke<string | null>("detect_game_version");
-				if (cv) {
-					setChangelogVersion(cv);
-				}
-			} catch (_) {}
+      try {
+        const cv = await invoke<string | null>("detect_game_version");
+        if (cv) setChangelogVersion(cv);
+      } catch (_) {}
 
-			invoke<string>("get_app_version")
-				.then(setAppVersion)
-				.catch(() => {});
+      invoke<string>("get_app_version").then(setAppVersion).catch(() => {});
 
-			await loadProfiles();
+      await loadProfilesRef.current();
 
-			try {
-				const result = await invoke<Mod[]>("get_mods");
-				setMods(result);
-				if (result.length === 0) setSyncing(true);
-			} catch (e) {
-				console.error("Failed to load mods:", e);
-			}
+      try {
+        const result = await invoke<Mod[]>("get_mods");
+        setMods(result ?? []);
+        if (!result || result.length === 0) setSyncing(true);
+      } catch (e) {
+        console.error("Failed to load mods:", e);
+      }
 
-			try {
-				const result = await invoke<Blueprint[]>("get_blueprints");
-				setBlueprints(result);
-			} catch (e) {
-				console.error("Failed to load blueprints:", e);
-			}
+      try {
+        const result = await invoke<Blueprint[]>("get_blueprints");
+        setBlueprints(result);
+      } catch (e) {
+        console.error("Failed to load blueprints:", e);
+      }
 
-			unlisten = await listen("mods-updated", async () => {
-				const result = await invoke<Mod[]>("get_mods");
-				setMods(result);
-				setSyncing(false);
-			});
+      // Register all listeners atomically. If the effect was already cleaned up
+      // while we were awaiting, immediately unlisten and bail out.
+      const registered = await Promise.all([
+        listen("mods-updated", async () => {
+          try {
+            const result = await invoke<Mod[]>("get_mods");
+            setMods(result ?? []);
+          } catch (e) {
+            console.error("Failed to reload mods:", e);
+          } finally {
+            setSyncing(false);
+          }
+        }),
+        listen("blueprints-updated", async () => {
+          try {
+            const result = await invoke<Blueprint[]>("get_blueprints");
+            setBlueprints(result);
+          } catch (e) {
+            console.error("Failed to reload blueprints:", e);
+          } finally {
+            setBlueprintSyncing(false);
+          }
+        }),
+        listen<string>("mods-sync-error", (e) => {
+          console.error("Mods sync error:", e.payload);
+          showToastRef.current(translateError(e.payload, tRef.current), "error");
+        }),
+        listen<{ version: string; notes?: string }>("update-available", (e) => {
+          setAppUpdate(e.payload);
+          showToastRef.current(
+            tRef.current("toast.update_available", { version: e.payload.version }),
+            "info",
+          );
+        }),
+        listen<{ version: string }>("update-installed", (e) => {
+          showToastRef.current(
+            tRef.current("toast.update_installed", { version: e.payload.version }),
+            "success",
+          );
+        }),
+        listen("update-restart", () => {
+          showToastRef.current(tRef.current("toast.update_restart"), "success");
+        }),
+        listen("update-progress", () => {}),
+        listen<number>("mods-updated-notification", (e) => {
+          showToastRef.current(
+            tRef.current("toast.mods_updated", { count: e.payload }),
+            "success",
+          );
+        }),
+      ]);
 
-			unlistenBlueprints = await listen("blueprints-updated", async () => {
-				const result = await invoke<Blueprint[]>("get_blueprints");
-				setBlueprints(result);
-				setBlueprintSyncing(false);
-			});
+      if (cancelled) {
+        registered.forEach((fn) => fn());
+        return;
+      }
+      unlistens = registered;
+    }
 
-			await listen<string>("mods-sync-error", (e) => {
-				console.error("Mods sync error:", e.payload);
-				showToast(translateError(e.payload, t), "error");
-			});
+    init();
+    return () => {
+      cancelled = true;
+      unlistens.forEach((fn) => fn());
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [i18n]);
 
-			await listen<{ version: string; notes?: string }>(
-				"update-available",
-				(e) => {
-					setAppUpdate(e.payload);
-					showToast(
-						t("toast.update_available", { version: e.payload.version }),
-						"info",
-					);
-				},
-			);
+  // Stable refs so event listeners never need to be re-registered when callbacks change.
+  const tRef = useRef(t);
+  const showToastRef = useRef(showToast);
+  const loadProfilesRef = useRef(loadProfiles);
+  useEffect(() => { tRef.current = t; });
+  useEffect(() => { showToastRef.current = showToast; });
+  useEffect(() => { loadProfilesRef.current = loadProfiles; });
 
-			await listen<{ version: string }>("update-installed", (e) => {
-				showToast(
-					t("toast.update_installed", { version: e.payload.version }),
-					"success",
-				);
-			});
+  const prevSortRef = useRef(filters.sortBy);
+  const prevTimeRef = useRef(filters.timeRange);
 
-			await listen("update-restart", () => {
-				showToast(t("toast.update_restart"), "success");
-			});
+  const loadMods = useCallback(async () => {
+    try {
+      const result = await invoke<Mod[]>("get_mods");
+      setMods(result);
+    } catch (e) {
+      console.error("Failed to load mods:", e);
+      showToast(translateError(String(e), t), "error");
+    }
+  }, [showToast, t]);
 
-			await listen("update-progress", () => {});
+  const handleRefresh = useCallback(async () => {
+    setSyncing(true);
+    const option = SORT_OPTIONS.find((o) => o.value === filters.sortBy);
+    const orderBy = option?.apiValue ?? "updated";
+    try {
+      await invoke("sync_mods", { orderBy, timeRange: filters.timeRange });
+      await loadMods();
+    } catch (e) {
+      console.error("Failed to sync:", e);
+      showToast(translateError(String(e), t), "error");
+    } finally {
+      setSyncing(false);
+    }
+  }, [loadMods, filters.sortBy, filters.timeRange, showToast, t]);
 
-			await listen<number>("mods-updated-notification", (e) => {
-				const count = e.payload;
-				showToast(t("toast.mods_updated", { count }), "success");
-			});
-		}
+  const handleRefreshRef = useRef(handleRefresh);
+  useEffect(() => { handleRefreshRef.current = handleRefresh; }, [handleRefresh]);
 
-		init();
-		return () => {
-			unlisten?.();
-			unlistenBlueprints?.();
-		};
-	}, [i18n, t, showToast, loadProfiles]);
+  useEffect(() => {
+    const sortChanged = filters.sortBy !== prevSortRef.current;
+    const timeChanged = filters.timeRange !== prevTimeRef.current;
+    prevSortRef.current = filters.sortBy;
+    prevTimeRef.current = filters.timeRange;
+    if (!sortChanged && !timeChanged) return;
+    if (mods.length === 0) return;
+    handleRefreshRef.current();
+  }, [filters.sortBy, filters.timeRange, mods.length]);
 
-	const prevSortRef = useRef(filters.sortBy);
-	const prevTimeRef = useRef(filters.timeRange);
+  async function handleUpdateAll() {
+    setSyncing(true);
+    try {
+      await invoke("update_all_mods");
+      await loadMods();
+    } catch (e) {
+      console.error("Failed to update:", e);
+      showToast(translateError(String(e), t), "error");
+    } finally {
+      setSyncing(false);
+    }
+  }
 
-	const loadMods = useCallback(async () => {
-		try {
-			const result = await invoke<Mod[]>("get_mods");
-			setMods(result);
-		} catch (e) {
-			console.error("Failed to load mods:", e);
-			showToast(translateError(String(e), t), "error");
-		}
-	}, [showToast, t]);
+  async function handleUpdate(mod: Mod) {
+    setInstallingIds((prev) => new Set([...prev, mod.id]));
+    try {
+      await invoke("update_mod", { modId: mod.id });
+      await loadMods();
+    } catch (e) {
+      console.error("Failed to update mod:", e);
+      showToast(translateError(String(e), t), "error");
+    } finally {
+      setInstallingIds((prev) => {
+        const s = new Set(prev);
+        s.delete(mod.id);
+        return s;
+      });
+    }
+  }
 
-	const handleRefresh = useCallback(async () => {
-		setSyncing(true);
-		const option = SORT_OPTIONS.find((o) => o.value === filters.sortBy);
-		const orderBy = option?.apiValue ?? "updated";
-		try {
-			await invoke("sync_mods", { orderBy, timeRange: filters.timeRange });
-			await loadMods();
-		} catch (e) {
-			console.error("Failed to sync:", e);
-			showToast(translateError(String(e), t), "error");
-		} finally {
-			setSyncing(false);
-		}
-	}, [loadMods, filters.sortBy, filters.timeRange, showToast, t]);
+  async function handleInstall(
+    mod: Mod,
+    version?: string,
+    versionDownloadUrl?: string,
+  ) {
+    const realVersion = changelogVersion ?? savedGameVersion;
+    if (
+      realVersion &&
+      mod.game_version &&
+      !versionInRange(realVersion, mod.game_version)
+    ) {
+      const msg = t("install.version_warning", {
+        mod: mod.name,
+        version: realVersion,
+        modVersion: mod.game_version,
+      });
+      if (!window.confirm(msg)) return;
+    }
 
-	useEffect(() => {
-		const sortChanged = filters.sortBy !== prevSortRef.current;
-		const timeChanged = filters.timeRange !== prevTimeRef.current;
-		prevSortRef.current = filters.sortBy;
-		prevTimeRef.current = filters.timeRange;
-		if (!sortChanged && !timeChanged) return;
-		if (mods.length === 0) return;
-		handleRefresh();
-	}, [filters.sortBy, filters.timeRange, mods.length, handleRefresh]);
+    setInstallingIds((prev) => new Set([...prev, mod.id]));
+    try {
+      await invoke("install_mod", {
+        modId: mod.id,
+        version: version ?? null,
+        versionDownloadUrl: versionDownloadUrl ?? null,
+      });
+      await loadMods();
+    } catch (e) {
+      console.error("Failed to install mod:", e);
+      showToast(translateError(String(e), t), "error");
+    } finally {
+      setInstallingIds((prev) => {
+        const s = new Set(prev);
+        s.delete(mod.id);
+        return s;
+      });
+    }
+  }
 
-	async function handleUpdateAll() {
-		setSyncing(true);
-		try {
-			await invoke("update_all_mods");
-			await loadMods();
-		} catch (e) {
-			console.error("Failed to update:", e);
-			showToast(translateError(String(e), t), "error");
-		} finally {
-			setSyncing(false);
-		}
-	}
+  async function handleUninstall(mod: Mod) {
+    setInstallingIds((prev) => new Set([...prev, mod.id]));
+    try {
+      await invoke("uninstall_mod", { modId: mod.id });
+      await loadMods();
+    } catch (e) {
+      console.error("Failed to uninstall mod:", e);
+      showToast(translateError(String(e), t), "error");
+    } finally {
+      setInstallingIds((prev) => {
+        const s = new Set(prev);
+        s.delete(mod.id);
+        return s;
+      });
+    }
+  }
 
-	async function handleUpdate(mod: Mod) {
-		setInstallingIds((prev) => new Set([...prev, mod.id]));
-		try {
-			await invoke("update_mod", { modId: mod.id });
-			await loadMods();
-		} catch (e) {
-			console.error("Failed to update mod:", e);
-			showToast(translateError(String(e), t), "error");
-		} finally {
-			setInstallingIds((prev) => {
-				const s = new Set(prev);
-				s.delete(mod.id);
-				return s;
-			});
-		}
-	}
+  async function handleBlueprintSync() {
+    setBlueprintSyncing(true);
+    try {
+      await invoke("sync_blueprints");
+    } catch (e) {
+      console.error("Failed to sync blueprints:", e);
+      showToast(translateError(String(e), t), "error");
+      setBlueprintSyncing(false);
+    }
+  }
 
-	async function handleInstall(
-		mod: Mod,
-		version?: string,
-		versionDownloadUrl?: string,
-	) {
-		const realVersion = changelogVersion ?? savedGameVersion;
-		if (
-			realVersion &&
-			mod.game_version &&
-			!versionInRange(realVersion, mod.game_version)
-		) {
-			const msg = t("install.version_warning", {
-				mod: mod.name,
-				version: realVersion,
-				modVersion: mod.game_version,
-			});
-			if (!window.confirm(msg)) return;
-		}
+  const tags = useMemo(() => {
+    const set = new Set<string>();
+    for (const m of (mods ?? [])) {
+      for (const t of splitTags(m.category)) {
+        set.add(t);
+      }
+    }
+    return [...set].sort();
+  }, [mods]);
 
-		setInstallingIds((prev) => new Set([...prev, mod.id]));
-		try {
-			await invoke("install_mod", {
-				modId: mod.id,
-				version: version ?? null,
-				versionDownloadUrl: versionDownloadUrl ?? null,
-			});
-			await loadMods();
-		} catch (e) {
-			console.error("Failed to install mod:", e);
-			showToast(translateError(String(e), t), "error");
-		} finally {
-			setInstallingIds((prev) => {
-				const s = new Set(prev);
-				s.delete(mod.id);
-				return s;
-			});
-		}
-	}
+  const tagCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const m of (mods ?? [])) {
+      for (const t of splitTags(m.category)) {
+        counts[t] = (counts[t] ?? 0) + 1;
+      }
+    }
+    return counts;
+  }, [mods]);
 
-	async function handleUninstall(mod: Mod) {
-		setInstallingIds((prev) => new Set([...prev, mod.id]));
-		try {
-			await invoke("uninstall_mod", { modId: mod.id });
-			await loadMods();
-		} catch (e) {
-			console.error("Failed to uninstall mod:", e);
-			showToast(translateError(String(e), t), "error");
-		} finally {
-			setInstallingIds((prev) => {
-				const s = new Set(prev);
-				s.delete(mod.id);
-				return s;
-			});
-		}
-	}
+  const gameVersions = useMemo(() => {
+    const set = new Set<string>();
+    mods.forEach((m) => {
+      if (m.game_version) {
+        expandGameVersionRange(m.game_version).forEach((v) => set.add(v));
+      }
+    });
+    return [...set].sort((a, b) => compareVersions(b, a));
+  }, [mods]);
 
-	async function handleBlueprintSync() {
-		setBlueprintSyncing(true);
-		try {
-			await invoke("sync_blueprints");
-		} catch (e) {
-			console.error("Failed to sync blueprints:", e);
-			showToast(translateError(String(e), t), "error");
-			setBlueprintSyncing(false);
-		}
-	}
+  const gameVersionSet = useMemo(() => new Set(gameVersions), [gameVersions]);
 
-	const tags = useMemo(() => {
-		const set = new Set<string>();
-		for (const m of mods) {
-			for (const t of splitTags(m.category)) {
-				set.add(t);
-			}
-		}
-		return [...set].sort();
-	}, [mods]);
+  useEffect(() => {
+    if (savedGameVersion && !filters.gameVersion && gameVersionSet.size > 0) {
+      setFilters((prev) => ({ ...prev, gameVersion: savedGameVersion }));
+    }
+  }, [savedGameVersion, gameVersionSet]);
 
-	const tagCounts = useMemo(() => {
-		const counts: Record<string, number> = {};
-		for (const m of mods) {
-			for (const t of splitTags(m.category)) {
-				counts[t] = (counts[t] ?? 0) + 1;
-			}
-		}
-		return counts;
-	}, [mods]);
+  const outdatedCount = useMemo(
+    () => mods.filter((m) => getModStatus(m) === "outdated").length,
+    [mods],
+  );
 
-	const gameVersions = useMemo(() => {
-		const set = new Set<string>();
-		mods.forEach((m) => {
-			if (m.game_version) {
-				expandGameVersionRange(m.game_version).forEach((v) => set.add(v));
-			}
-		});
-		return [...set].sort((a, b) => compareVersions(b, a));
-	}, [mods]);
+  const sortedMods = useMemo(() => {
+    const arr = [...mods];
+    if (filters.sortBy === "name_asc") {
+      arr.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (filters.sortBy === "name_desc") {
+      arr.sort((a, b) => b.name.localeCompare(a.name));
+    } else {
+      arr.sort((a, b) => a.scrape_rank - b.scrape_rank);
+    }
+    return arr;
+  }, [mods, filters.sortBy]);
 
-	const gameVersionSet = useMemo(() => new Set(gameVersions), [gameVersions]);
+  const installedCount = useMemo(
+    () => mods.filter((m) => m.is_installed).length,
+    [mods],
+  );
 
-	useEffect(() => {
-		if (savedGameVersion && !filters.gameVersion && gameVersionSet.size > 0) {
-			setFilters((prev) => ({ ...prev, gameVersion: savedGameVersion }));
-		}
-	}, [savedGameVersion, gameVersionSet]);
-
-	const outdatedCount = useMemo(
-		() => mods.filter((m) => getModStatus(m) === "outdated").length,
-		[mods],
-	);
-
-	const sortedMods = useMemo(() => {
-		const arr = [...mods];
-		if (filters.sortBy === "name_asc") {
-			arr.sort((a, b) => a.name.localeCompare(b.name));
-		} else if (filters.sortBy === "name_desc") {
-			arr.sort((a, b) => b.name.localeCompare(a.name));
-		} else {
-			arr.sort((a, b) => a.scrape_rank - b.scrape_rank);
-		}
-		return arr;
-	}, [mods, filters.sortBy]);
-
-	const installedCount = useMemo(
-		() => mods.filter((m) => m.is_installed).length,
-		[mods],
-	);
-
-	return (
-		<div
-			style={{
-				display: "flex",
-				flexDirection: "column",
-				height: "100vh",
-				backgroundColor: "#2f2f2f",
-				color: "#f8f8f8",
-				overflow: "hidden",
-			}}
-		>
-			<TopBar
-				outdatedCount={outdatedCount}
-				onRefresh={handleRefresh}
-				onUpdateAll={handleUpdateAll}
-				onBlueprintSync={handleBlueprintSync}
-				blueprintSyncing={blueprintSyncing}
-				loading={syncing}
-				view={view}
-				onViewChange={setView}
-				appUpdate={appUpdate}
-				activeProfile={activeProfile}
-				onInstallUpdate={async () => {
-					setSyncing(true);
-					try {
-						await invoke("install_update");
-					} catch (e) {
-						console.error("Failed to install update:", e);
-						showToast(translateError(String(e), t), "error");
-						setSyncing(false);
-					}
-				}}
-			/>
-			<div style={{ display: "flex", flex: 1, minHeight: 0 }}>
-				<Toaster />
-				<NavSidebar view={view} onViewChange={setView} />
-				{view === "mods" || view === "details" ? (
-					<Sidebar
-						tags={tags}
-						counts={tagCounts}
-						total={mods.length}
-						gameVersions={gameVersions}
-						filters={filters}
-						onFiltersChange={setFilters}
-						detectedGameVersion={savedGameVersion}
-					/>
-				) : null}
-				<div
-					style={{
-						display: "flex",
-						flexDirection: "column",
-						flex: 1,
-						minWidth: 0,
-					}}
-				>
-					{/* BlueprintList stays mounted to preserve scroll position */}
-					<div style={{
-						display: (view === "blueprints") ? "flex" : "none",
-						flex: 1,
-						flexDirection: "column",
-						minHeight: 0,
-						minWidth: 0,
-					}}>
-						<BlueprintList
-							blueprints={blueprints}
-							filters={blueprintFilters}
-							onFiltersChange={setBlueprintFilters}
-							onSelectBlueprint={(id) => {
-								setSelectedBlueprintId(id);
-								setView("blueprint-details");
-							}}
-						/>
-					</div>
-					{view === "blueprint-details" && selectedBlueprintId ? (
-						<BlueprintDetail
-							blueprintId={selectedBlueprintId}
-							onBack={() => setView("blueprints")}
-							onSelectAuthor={(author) => {
-								setBlueprintFilters((f) => ({ ...f, author, search: "" }));
-								setView("blueprints");
-							}}
-							allBlueprints={blueprints}
-						/>
-					) : view === "blueprints" ? null : view === "mods" ? (
-						<ModList
-							mods={sortedMods}
-							filters={filters}
-							onUpdate={handleUpdate}
-							onInstall={handleInstall}
-							onUninstall={handleUninstall}
-							onSelectMod={(id) => {
-								setSelectedModId(id);
-								setView("details");
-							}}
-							syncing={syncing}
-							installingIds={installingIds}
-						/>
-					) : view === "details" && selectedModId ? (
-						<ModDetail
-							modId={selectedModId}
-							onBack={() => setView("mods")}
-							onUpdate={handleUpdate}
-							onInstall={handleInstall}
-							onUninstall={handleUninstall}
-							installingIds={installingIds}
-							allMods={mods}
-						/>
-					) : (
-						<Settings
-							activeProfile={activeProfile}
-							onProfilesChanged={loadProfiles}
-						/>
-					)}
-				</div>
-			</div>
-			<StatusBar
-				installedCount={installedCount}
-				gameVersion={changelogVersion ?? savedGameVersion}
-				appUpdate={appUpdate}
-				onUpdateClick={() => setShowUpdateModal(true)}
-				onChangelogClick={() => setShowChangelog(true)}
-			/>
-			{showUpdateModal && appUpdate && (
-				<UpdateModal
-					version={appUpdate.version}
-					notes={appUpdate.notes}
-					currentVersion={appVersion}
-					onClose={() => setShowUpdateModal(false)}
-				/>
-			)}
-			{showChangelog && (
-				<ChangelogModal onClose={() => setShowChangelog(false)} />
-			)}
-		</div>
-	);
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100vh",
+        backgroundColor: "#2f2f2f",
+        color: "#f8f8f8",
+        overflow: "hidden",
+      }}
+    >
+      <TopBar
+        outdatedCount={outdatedCount}
+        onRefresh={handleRefresh}
+        onUpdateAll={handleUpdateAll}
+        onBlueprintSync={handleBlueprintSync}
+        blueprintSyncing={blueprintSyncing}
+        loading={syncing}
+        view={view}
+        onViewChange={setView}
+        appUpdate={appUpdate}
+        activeProfile={activeProfile}
+        onInstallUpdate={async () => {
+          setSyncing(true);
+          try {
+            await invoke("install_update");
+          } catch (e) {
+            console.error("Failed to install update:", e);
+            showToast(translateError(String(e), t), "error");
+            setSyncing(false);
+          }
+        }}
+      />
+      <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+        <Toaster />
+        <NavSidebar view={view} onViewChange={setView} />
+        {view === "mods" || view === "details" ? (
+          <Sidebar
+            tags={tags}
+            counts={tagCounts}
+            total={mods.length}
+            gameVersions={gameVersions}
+            filters={filters}
+            onFiltersChange={setFilters}
+            detectedGameVersion={savedGameVersion}
+          />
+        ) : null}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            flex: 1,
+            minWidth: 0,
+          }}
+        >
+          {/* BlueprintList stays mounted to preserve scroll position */}
+          <div style={{
+            display: (view === "blueprints") ? "flex" : "none",
+            flex: 1,
+            flexDirection: "column",
+            minHeight: 0,
+            minWidth: 0,
+          }}>
+            <BlueprintList
+              blueprints={blueprints}
+              filters={blueprintFilters}
+              onFiltersChange={setBlueprintFilters}
+              onSelectBlueprint={(id) => {
+                setSelectedBlueprintId(id);
+                setView("blueprint-details");
+              }}
+            />
+          </div>
+          {view === "blueprint-details" && selectedBlueprintId ? (
+            <BlueprintDetail
+              blueprintId={selectedBlueprintId}
+              onBack={() => setView("blueprints")}
+              onSelectAuthor={(author) => {
+                setBlueprintFilters((f) => ({ ...f, author, search: "" }));
+                setView("blueprints");
+              }}
+              allBlueprints={blueprints}
+            />
+          ) : view === "blueprints" ? null : view === "mods" ? (
+            <ModList
+              mods={sortedMods}
+              filters={filters}
+              onUpdate={handleUpdate}
+              onInstall={handleInstall}
+              onUninstall={handleUninstall}
+              onSelectMod={(id) => {
+                setSelectedModId(id);
+                setView("details");
+              }}
+              syncing={syncing}
+              installingIds={installingIds}
+            />
+          ) : view === "details" && selectedModId ? (
+            <ModDetail
+              modId={selectedModId}
+              onBack={() => setView("mods")}
+              onUpdate={handleUpdate}
+              onInstall={handleInstall}
+              onUninstall={handleUninstall}
+              installingIds={installingIds}
+              allMods={mods}
+            />
+          ) : (
+            <Settings
+              activeProfile={activeProfile}
+              onProfilesChanged={loadProfiles}
+            />
+          )}
+        </div>
+      </div>
+      <StatusBar
+        installedCount={installedCount}
+        gameVersion={changelogVersion ?? savedGameVersion}
+        appUpdate={appUpdate}
+        onUpdateClick={() => setShowUpdateModal(true)}
+        onChangelogClick={() => setShowChangelog(true)}
+      />
+      {showUpdateModal && appUpdate && (
+        <UpdateModal
+          version={appUpdate.version}
+          notes={appUpdate.notes}
+          currentVersion={appVersion}
+          onClose={() => setShowUpdateModal(false)}
+        />
+      )}
+      {showChangelog && (
+        <ChangelogModal onClose={() => setShowChangelog(false)} />
+      )}
+    </div>
+  );
 }

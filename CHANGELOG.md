@@ -2,6 +2,28 @@
 
 ## [unreleased]
 
+## [0.4.1-beta.1] – 2026-05-27
+
+### Added
+- Stable pool directories (`mod_id` instead of `mod_id-version`) — user-created files (saves, settings) persist across mod updates
+- `merge_into_dir` and `update_mod_link` functions — merge updated mod files without deleting user saves/configs
+- Null safety in `splitTags` and mod list calculations — handles `null`/`undefined` category without crashing
+- Proper effect cancellation and stable callback refs — event listeners no longer re-register on every render
+
+### Changed
+- Settings tab removed from navigation sidebar — settings remain accessible via the gear icon in the top bar
+- Pool extraction no longer versioned — each mod has a single stable pool directory
+- `extract_to_pool` now accepts `existing_folder_name` — preserves folder name across updates for game reference stability
+
+### Fixed
+- Windows `tasklist` command now uses `CREATE_NO_WINDOW` flag — prevents console window flash on game-running check
+- `import_profile` updated to use the new stable pool structure
+- `scan_installed_mods` and `run_scan_installed` use stable pool paths
+
+### Removed
+- `cleanup_old_pool_versions` function — no longer needed with stable pool directories
+- Old symlink cleanup logic in `update_all_mods` and `update_mod` — consolidated into `update_mod_link`
+
 ## [0.3.2] – 2026-05-25
 
 ### Added

@@ -1,4 +1,4 @@
-import { Map, Package, Settings } from "lucide-react";
+import { Map, Package } from "lucide-react";
 import type { ElementType } from "react";
 
 type TabView =
@@ -14,14 +14,13 @@ interface NavSidebarProps {
 }
 
 const NAV_ITEMS: {
-	id: "blueprints" | "mods" | "settings";
+	id: "blueprints" | "mods";
 	icon: ElementType;
 	label: string;
 	activeColor: string;
 }[] = [
 	{ id: "blueprints", icon: Map, label: "BPs", activeColor: "#7ed3f6" },
 	{ id: "mods", icon: Package, label: "Mods", activeColor: "#6eb660" },
-	{ id: "settings", icon: Settings, label: "Set", activeColor: "#c6c6c6" },
 ];
 
 export function NavSidebar({ view, onViewChange }: NavSidebarProps) {
