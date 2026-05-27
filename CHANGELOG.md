@@ -2,7 +2,7 @@
 
 ## [unreleased]
 
-## [0.4.1-beta.1] – 2026-05-27
+## [0.4.1] – 2026-05-27
 
 ### Added
 - Stable pool directories (`mod_id` instead of `mod_id-version`) — user-created files (saves, settings) persist across mod updates
