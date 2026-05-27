@@ -61,19 +61,23 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: "CoI Mod Manager ${{ github.ref_name }}"
           releaseBody: |
-            ## 🎮 CoI Mod Manager ${{ github.ref_name }}
+            ${{ contains(github.ref_name, '-') && '## 🚧 Pre-release' || '## 🎮 Release' }} — CoI Mod Manager ${{ github.ref_name }}
 
-            ### ✨ What's New
-            - **Safety**: mod directory deletion now checks for `manifest.json` — prevents accidental deletion of savegames, settings, or source code
-            - **Per‑profile config backup**: each profile keeps its own mod config files, preserved when switching profiles
-            - **NSIS installer no longer requires admin**: installs to `%LOCALAPPDATA%` instead of `Program Files`
-            - **Changelog viewer**: click the app version in the status bar to see the full release history
-            - **Update notification**: icon appears in the status bar when a new version is available, with release notes and "Update Now"
-            - **Browse for game folder**: manually point to your game directory when auto-detection fails
-            - **"Check for Updates" button** in Settings
-            - **Fixed false "update available"**: version comparison now handles `v` prefix mismatches correctly
-            - **Fixed hardcoded Portuguese** on mod detail page — `game_version_title` now uses the selected language
+            ### Added
+            - Stable pool directories — user-created files (saves, settings) persist across mod updates
+            - `merge_into_dir` and `update_mod_link` functions for safer mod updates
+            - Null safety in `splitTags` and mod list calculations
+            - Proper effect cancellation and stable callback refs
+
+            ### Changed
+            - Settings tab removed from navigation sidebar (accessible via gear icon)
+            - Pool extraction no longer versioned — each mod has a single stable pool directory
+            - `extract_to_pool` preserves folder name across updates
+
+            ### Fixed
+            - Windows `tasklist` now uses `CREATE_NO_WINDOW` flag — no console flash
+            - `import_profile`, `scan_installed_mods` updated for stable pool structure
 
           releaseDraft: false
-          prerelease: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
           includeUpdaterJson: true
