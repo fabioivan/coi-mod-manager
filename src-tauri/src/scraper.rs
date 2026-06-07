@@ -298,6 +298,7 @@ pub async fn resolve_download_url(
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct ModDetails {
     pub id: String,
+    pub url: String,
     pub name: String,
     pub author: String,
     pub short_description: String,
@@ -765,6 +766,7 @@ pub async fn scrape_mod_details(
 
     Ok(ModDetails {
         id,
+        url: mod_url.to_string(),
         name,
         author,
         short_description,

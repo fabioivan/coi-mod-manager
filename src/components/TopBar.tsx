@@ -271,12 +271,17 @@ export function TopBar({
 				<Button
 					onClick={() => invoke("launch_game")}
 					title={t("topBar.tooltip_play")}
-					variant="ghost"
-					size="icon"
-					className="h-7 w-7"
-					style={{ color: "#81c784" }}
+					size="sm"
+					style={{
+						padding: "6px 14px",
+						height: "auto",
+						backgroundColor: "#1b9fff",
+						color: "#fff",
+						border: "none",
+					}}
 				>
-					<Play size={15} />
+					<Play size={14} style={{ marginRight: "4px" }} fill="#fff" />
+					{t("topBar.play")}
 				</Button>
 				{(view === "details" ||
 					view === "blueprint-details" ||

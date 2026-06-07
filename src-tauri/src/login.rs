@@ -143,9 +143,9 @@ async fn fetch_page_data(client: &reqwest::Client, page_url: &str) -> Result<(St
     Ok((entity_id, token))
 }
 
-pub async fn vote_map(db: &Database, map_url: &str, rating: u8) -> Result<(), String> {
+async fn vote_entity(db: &Database, page_url: &str, entity_type: &str, rating: u8) -> Result<(), String> {
     let (client, _) = build_auth_client(db).await?;
-    let (entity_id, token) = fetch_page_data(&client, map_url).await?;
+    let (entity_id, token) = fetch_page_data(&client, page_url).await?;
 
     let body = url::form_urlencoded::Serializer::new(String::new())
         .append_pair("id", &entity_id)
@@ -153,7 +153,7 @@ pub async fn vote_map(db: &Database, map_url: &str, rating: u8) -> Result<(), St
         .append_pair("__RequestVerificationToken", &token)
         .finish();
     let resp = client
-        .post(format!("{}/Map/Rate", HUB_DOMAIN))
+        .post(format!("{}/{}/Rate", HUB_DOMAIN, entity_type))
         .header(reqwest::header::CONTENT_TYPE, "application/x-www-form-urlencoded")
         .body(body)
         .send()
@@ -163,20 +163,19 @@ pub async fn vote_map(db: &Database, map_url: &str, rating: u8) -> Result<(), St
     if !resp.status().is_success() {
         return Err(format!("Vote returned HTTP {}", resp.status().as_u16()));
     }
-
     Ok(())
 }
 
-pub async fn favorite_map(db: &Database, map_url: &str) -> Result<(), String> {
+async fn favorite_entity(db: &Database, page_url: &str, entity_type: &str) -> Result<(), String> {
     let (client, _) = build_auth_client(db).await?;
-    let (entity_id, token) = fetch_page_data(&client, map_url).await?;
+    let (entity_id, token) = fetch_page_data(&client, page_url).await?;
 
     let body = url::form_urlencoded::Serializer::new(String::new())
         .append_pair("id", &entity_id)
         .append_pair("__RequestVerificationToken", &token)
         .finish();
     let resp = client
-        .post(format!("{}/Map/ToggleFavorite", HUB_DOMAIN))
+        .post(format!("{}/{}/ToggleFavorite", HUB_DOMAIN, entity_type))
         .header(reqwest::header::CONTENT_TYPE, "application/x-www-form-urlencoded")
         .body(body)
         .send()
@@ -186,6 +185,29 @@ pub async fn favorite_map(db: &Database, map_url: &str) -> Result<(), String> {
     if !resp.status().is_success() {
         return Err(format!("Favorite returned HTTP {}", resp.status().as_u16()));
     }
-
     Ok(())
+}
+
+pub async fn vote_map(db: &Database, map_url: &str, rating: u8) -> Result<(), String> {
+    vote_entity(db, map_url, "Map", rating).await
+}
+
+pub async fn favorite_map(db: &Database, map_url: &str) -> Result<(), String> {
+    favorite_entity(db, map_url, "Map").await
+}
+
+pub async fn vote_mod(db: &Database, mod_url: &str, rating: u8) -> Result<(), String> {
+    vote_entity(db, mod_url, "Mod", rating).await
+}
+
+pub async fn favorite_mod(db: &Database, mod_url: &str) -> Result<(), String> {
+    favorite_entity(db, mod_url, "Mod").await
+}
+
+pub async fn vote_blueprint(db: &Database, blueprint_url: &str, rating: u8) -> Result<(), String> {
+    vote_entity(db, blueprint_url, "Blueprint", rating).await
+}
+
+pub async fn favorite_blueprint(db: &Database, blueprint_url: &str) -> Result<(), String> {
+    favorite_entity(db, blueprint_url, "Blueprint").await
 }

@@ -1,7 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import {
 	ArrowLeft,
-	Calendar,
 	CheckCircle,
 	ChevronUp,
 	Code,
@@ -9,13 +8,13 @@ import {
 	Download,
 	ExternalLink,
 	Eye,
-	FileText,
 	Heart,
 	Info,
 	Loader2,
 	Lock,
 	RefreshCw,
 	ShieldAlert,
+	ThumbsDown,
 	ThumbsUp,
 	Trash2,
 } from "lucide-react";
@@ -64,6 +63,8 @@ export function ModDetail({
 	const [selectedVersionIndex, setSelectedVersionIndex] = useState<number>(0);
 	const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 	const [showScrollTop, setShowScrollTop] = useState(false);
+	const [voteLoading, setVoteLoading] = useState<string | null>(null);
+	const [favLoading, setFavLoading] = useState(false);
 	const scrollRef = useRef<HTMLDivElement>(null);
 
 	// Encontra o mod correspondente na lista local para sincronizar estados de instalação
@@ -191,6 +192,29 @@ export function ModDetail({
 
 	const selectedVersion = details.versions[selectedVersionIndex];
 
+	const handleVote = async (rating: number) => {
+		if (!details) return;
+		const key = `vote-${rating}`;
+		setVoteLoading(key);
+		try {
+			await invoke("vote_mod", { modUrl: details.url, rating });
+		} catch (err) {
+			console.error("Vote failed:", err);
+		}
+		setVoteLoading(null);
+	};
+
+	const handleFavorite = async () => {
+		if (!details) return;
+		setFavLoading(true);
+		try {
+			await invoke("favorite_mod", { modUrl: details.url });
+		} catch (err) {
+			console.error("Favorite failed:", err);
+		}
+		setFavLoading(false);
+	};
+
 	return (
 		<div
 			style={{
@@ -198,7 +222,10 @@ export function ModDetail({
 				flexDirection: "column",
 				flex: 1,
 				minHeight: 0,
-				backgroundColor: "#2f2f2f",
+				backgroundImage: "url(/background.jpg)",
+				backgroundSize: "cover",
+				backgroundAttachment: "fixed",
+				backgroundPosition: "center center",
 			}}
 		>
 			{/* Estilos injetados para a descrição HTML scraped */}
@@ -276,38 +303,29 @@ export function ModDetail({
         }
       `}</style>
 
-			{/* Header com botão de voltar */}
-			<div
-				style={{
-					padding: "12px 20px",
-					borderBottom: `1px solid ${C.borderGrey}`,
-					backgroundColor: C.darkerGrey,
-					display: "flex",
-					alignItems: "center",
-					gap: "12px",
-					flexShrink: 0,
-				}}
-			>
-				<Button
-					onClick={onBack}
-					variant="outline"
-					size="sm"
-					style={{ padding: "6px 14px", height: "auto" }}
-					className="border-[#222222] text-[#c6c6c6] hover:bg-[#4f4f4f] hover:text-white text-[12px] font-semibold uppercase"
-				>
-					<ArrowLeft size={13} />
-					{t("common.btn_back", "Voltar")}
-				</Button>
-				<span style={{ color: C.metaGrey, fontSize: "13px" }}>
-					/ {t("modDetail.path_details", "Detalhes do Mod")}
-				</span>
-			</div>
-
-			{/* Main Container Rolável */}
 			<div
 				ref={scrollRef}
-				style={{ flex: 1, overflowY: "auto", padding: "20px" }}
+				style={{ flex: 1, overflowY: "auto" }}
 			>
+				<div style={{ maxWidth: "1140px", margin: "0 auto", padding: "20px", backgroundColor: "#2f2f2f", borderRadius: "8px" }}>
+					<button
+						type="button"
+						onClick={onBack}
+						style={{
+							display: "flex",
+							alignItems: "center",
+							gap: "6px",
+							background: "none",
+							border: "none",
+							color: C.yellow,
+							cursor: "pointer",
+							fontSize: "13px",
+							padding: "0 0 16px",
+						}}
+					>
+						<ArrowLeft size={15} />
+						{t("common.btn_back")}
+					</button>
 				{/* Mod Meta Hero Header */}
 				<div
 					style={{
@@ -621,264 +639,128 @@ export function ModDetail({
 							)}
 						</div>
 
-						{/* Compatibilidade de saves */}
-						<div
-							style={{
-								marginTop: "4px",
-								borderTop: `1px solid ${C.grey}`,
-								paddingTop: "8px",
-								display: "flex",
-								flexDirection: "column",
-								gap: "4px",
-								fontSize: "11px",
-								color: C.metaGrey,
-							}}
-						>
+						{/* Downloads e Tamanho */}
+						<div style={{ marginTop: "4px", borderTop: `1px solid ${C.grey}`, paddingTop: "8px", display: "flex", flexDirection: "column", gap: "6px", fontSize: "11px", color: C.metaGrey }}>
 							<div style={{ display: "flex", justifyContent: "space-between" }}>
-								<span>{t("modDetail.save_add", "Adicionar ao Save:")}</span>
-								<span
-									style={{
-										color: details.save_game_add_ok ? "#a3e4bc" : "#ef5350",
-										fontWeight: 700,
-									}}
-								>
-									{details.save_game_add_ok
-										? t("modDetail.save_ok", "Compatível ✓")
-										: t("modDetail.save_no", "Não recomendado ✗")}
-								</span>
+								<span>{t("common.downloads", "Downloads")}</span>
+								<span style={{ fontWeight: 700, color: C.lightGrey }}>{details.downloads.toLocaleString()}</span>
 							</div>
-							<div style={{ display: "flex", justifyContent: "space-between" }}>
-								<span>{t("modDetail.save_remove", "Remover do Save:")}</span>
-								<span
-									style={{
-										color: details.save_game_remove_ok ? "#a3e4bc" : "#ef5350",
-										fontWeight: 700,
-									}}
-								>
-									{details.save_game_remove_ok
-										? t("modDetail.save_ok", "Compatível ✓")
-										: t("modDetail.save_no", "Não recomendado ✗")}
-								</span>
-							</div>
+							{details.zip_file_size && (
+								<div style={{ display: "flex", justifyContent: "space-between" }}>
+									<span>{t("modDetail.size", "Tamanho ZIP")}</span>
+									<span style={{ fontWeight: 700, color: C.lightGrey }}>{details.zip_file_size}</span>
+								</div>
+							)}
 						</div>
+						<a
+							href={details.url}
+							target="_blank"
+							rel="noopener noreferrer"
+							style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", color: C.yellow, textDecoration: "none", marginTop: "2px" }}
+						>
+							<ExternalLink size={10} />
+							{t("modDetail.view_on_hub", "View on COI Hub")}
+						</a>
 					</div>
 				</div>
 
-				{/* Bar de Informações e Métricas (Stats Bar) */}
+				{/* Meta Bar — Game versions, Save compat, Vote/Favorite */}
 				<div
 					style={{
 						display: "flex",
-						justifyContent: "space-around",
 						flexWrap: "wrap",
-						gap: "10px",
+						alignItems: "center",
+						gap: "16px",
 						backgroundColor: C.darkerGrey,
-						padding: "12px",
+						padding: "12px 20px",
 						borderRadius: "8px",
 						marginBottom: "20px",
 						border: `1px solid ${C.borderGrey}`,
-						boxShadow: "inset 0 2px 4px rgba(0,0,0,0.2)",
 					}}
 				>
-					{/* Downloads */}
-					<div
-						style={{
-							display: "flex",
-							flexDirection: "column",
-							alignItems: "center",
-						}}
-					>
-						<span
-							style={{
-								fontSize: "10px",
-								color: C.metaGrey,
-								textTransform: "uppercase",
-							}}
-						>
-							{t("common.downloads", "Downloads")}
+					{details.game_versions && (
+						<span style={{ fontSize: "12px", color: C.metaGrey }}>
+							{t("common.game_versions", "Game versions:")} <strong style={{ color: C.lightGrey }}>{details.game_versions}</strong>
 						</span>
-						<span
-							style={{
-								fontSize: "15px",
-								fontWeight: 700,
-								color: C.lightGrey,
-								display: "flex",
-								alignItems: "center",
-								gap: "4px",
-								marginTop: "2px",
-							}}
-						>
-							<Download size={13} style={{ color: C.yellow }} />
-							{details.downloads.toLocaleString()}
-						</span>
-					</div>
-
-					{/* Favorites */}
-					<div
-						style={{
-							display: "flex",
-							flexDirection: "column",
-							alignItems: "center",
-						}}
-					>
-						<span
-							style={{
-								fontSize: "10px",
-								color: C.metaGrey,
-								textTransform: "uppercase",
-							}}
-						>
-							{t("common.favorites", "Favoritos")}
-						</span>
-						<span
-							style={{
-								fontSize: "15px",
-								fontWeight: 700,
-								color: C.lightGrey,
-								display: "flex",
-								alignItems: "center",
-								gap: "4px",
-								marginTop: "2px",
-							}}
-						>
-							<Heart size={13} style={{ color: "#ef5350", fill: "#ef5350" }} />
-							{details.favorites.toLocaleString()}
-						</span>
-					</div>
-
-					{/* Aprovação */}
-					<div
-						style={{
-							display: "flex",
-							flexDirection: "column",
-							alignItems: "center",
-						}}
-					>
-						<span
-							style={{
-								fontSize: "10px",
-								color: C.metaGrey,
-								textTransform: "uppercase",
-							}}
-						>
-							{t("common.approval", "Aprovação")}
-						</span>
-						<span
-							style={{
-								fontSize: "15px",
-								fontWeight: 700,
-								color: C.lightGrey,
-								display: "flex",
-								alignItems: "center",
-								gap: "4px",
-								marginTop: "2px",
-							}}
-						>
-							<ThumbsUp size={13} style={{ color: "#81c784" }} />
-							{details.approval_pct >= 0 ? `${details.approval_pct}%` : "---"}
-						</span>
-					</div>
-
-					{/* Atualizado */}
-					<div
-						style={{
-							display: "flex",
-							flexDirection: "column",
-							alignItems: "center",
-						}}
-					>
-						<span
-							style={{
-								fontSize: "10px",
-								color: C.metaGrey,
-								textTransform: "uppercase",
-							}}
-						>
-							{t("common.updated", "Atualizado em")}
-						</span>
-						<span
-							style={{
-								fontSize: "14px",
-								fontWeight: 600,
-								color: C.lightGrey,
-								display: "flex",
-								alignItems: "center",
-								gap: "4px",
-								marginTop: "2px",
-							}}
-						>
-							<Calendar size={13} style={{ color: C.metaGrey }} />
-							{details.updated_at
-								? new Date(details.updated_at).toLocaleDateString()
-								: "---"}
-						</span>
-					</div>
-
-					{/* Tamanho do Arquivo */}
-					{details.zip_file_size && (
-						<div
-							style={{
-								display: "flex",
-								flexDirection: "column",
-								alignItems: "center",
-							}}
-						>
-							<span
-								style={{
-									fontSize: "10px",
-									color: C.metaGrey,
-									textTransform: "uppercase",
-								}}
-							>
-								{t("modDetail.size", "Tamanho ZIP")}
-							</span>
-							<span
-								style={{
-									fontSize: "14px",
-									fontWeight: 600,
-									color: C.lightGrey,
-									display: "flex",
-									alignItems: "center",
-									gap: "4px",
-									marginTop: "2px",
-								}}
-							>
-								<FileText size={13} style={{ color: C.metaGrey }} />
-								{details.zip_file_size}
-							</span>
-						</div>
 					)}
 
-					{/* Versões de Jogo */}
-					<div
-						style={{
-							display: "flex",
-							flexDirection: "column",
-							alignItems: "center",
-						}}
-					>
-						<span
-							style={{
-								fontSize: "10px",
-								color: C.metaGrey,
-								textTransform: "uppercase",
-							}}
-						>
-							{t("modCard.game_version_title", "Versões do Jogo")}
+					<span style={{ fontSize: "12px", color: C.metaGrey }}>
+						Save:
+						{" "}Add{" "}
+						<span style={{ color: details.save_game_add_ok ? "#a3e4bc" : "#ef5350", fontWeight: 700 }}>
+							{details.save_game_add_ok ? "✓" : "✗"}
 						</span>
-						<span
-							style={{
-								fontSize: "14px",
-								fontWeight: 600,
-								color: C.lightGrey,
-								display: "flex",
-								alignItems: "center",
-								gap: "4px",
-								marginTop: "2px",
-							}}
-						>
-							<Cpu size={13} style={{ color: C.metaGrey }} />
-							{details.game_versions || "---"}
+						<span style={{ margin: "0 4px", color: C.grey }}>•</span>
+						Remove{" "}
+						<span style={{ color: details.save_game_remove_ok ? "#a3e4bc" : "#ef5350", fontWeight: 700 }}>
+							{details.save_game_remove_ok ? "✓" : "✗"}
 						</span>
+					</span>
+
+					<div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "8px" }}>
+						<div style={{ display: "flex", alignItems: "center", borderRadius: "4px", overflow: "hidden" }}>
+							<button
+								type="button"
+								onClick={() => handleVote(1)}
+								disabled={voteLoading === "vote-1"}
+								title="Upvote mod"
+								style={{
+									display: "inline-flex", alignItems: "center", justifyContent: "center",
+									padding: "6px 10px", background: C.yellow, color: C.darkGrey, fontSize: "11px",
+									border: "none", cursor: voteLoading === "vote-1" ? "default" : "pointer",
+								}}
+							>
+								{voteLoading === "vote-1" ? <Loader2 size={12} className="animate-spin" /> : <ThumbsUp size={12} />}
+							</button>
+							<button
+								type="button"
+								onClick={() => handleVote(0)}
+								disabled={voteLoading === "vote-0"}
+								title="Downvote mod"
+								style={{
+									display: "inline-flex", alignItems: "center", justifyContent: "center",
+									padding: "6px 10px", background: C.yellow, color: C.darkGrey, fontSize: "11px",
+									border: "none", borderLeft: `1px solid ${C.darkGrey}`,
+									cursor: voteLoading === "vote-0" ? "default" : "pointer",
+								}}
+							>
+								{voteLoading === "vote-0" ? <Loader2 size={12} className="animate-spin" /> : <ThumbsDown size={12} />}
+							</button>
+							<span
+								style={{
+									display: "inline-flex", alignItems: "center", padding: "6px 10px",
+									background: C.grey, color: C.lightGrey, fontSize: "11px", fontWeight: 700,
+									minWidth: "36px", justifyContent: "center",
+								}}
+							>
+								{details.approval_pct >= 0 ? `${details.approval_pct}%` : "—"}
+							</span>
+						</div>
+
+						<div style={{ display: "flex", alignItems: "center", borderRadius: "4px", overflow: "hidden" }}>
+							<button
+								type="button"
+								onClick={handleFavorite}
+								disabled={favLoading}
+								title="Add to favorites"
+								style={{
+									display: "inline-flex", alignItems: "center", justifyContent: "center",
+									padding: "6px 10px", background: C.yellow, color: C.darkGrey, fontSize: "11px",
+									border: "none", cursor: favLoading ? "default" : "pointer",
+								}}
+							>
+								{favLoading ? <Loader2 size={12} className="animate-spin" /> : <Heart size={12} />}
+							</button>
+							<span
+								style={{
+									display: "inline-flex", alignItems: "center", padding: "6px 10px",
+									background: C.grey, color: C.lightGrey, fontSize: "11px", fontWeight: 700,
+									minWidth: "36px", justifyContent: "center",
+								}}
+							>
+								{details.favorites.toLocaleString()}
+							</span>
+						</div>
 					</div>
 				</div>
 
@@ -1701,9 +1583,10 @@ export function ModDetail({
 							</p>
 						</div>
 					)}
+			</div>
 				</div>
 
-				{showScrollTop && (
+			{showScrollTop && (
 					<Button
 						onClick={scrollToTop}
 						size="icon"

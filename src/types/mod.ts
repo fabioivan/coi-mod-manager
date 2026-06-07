@@ -79,6 +79,7 @@ export interface ChangelogEntry {
 
 export interface ModDetails {
 	id: string;
+	url: string;
 	name: string;
 	author: string;
 	short_description: string;

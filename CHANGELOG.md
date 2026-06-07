@@ -5,22 +5,31 @@
 ### Added
 - **Maps section** — Browse, search, and download community maps from `hub.coigame.com`. Full detail page with gallery, resources table, starting locations, version history, and comments. Infinite scroll grid with sort/filter controls.
 - **Blueprints section** — Browse and search blueprints. Copy blueprint strings to clipboard with one click. Detail page with metadata and description. Infinite scroll grid with sort/filter controls.
-- **COI Hub Login** — Sign in via magic link (browser → email → paste flow). Cookies stored locally for authenticated requests. Required for map voting and favoriting.
-- **Map voting (upvote/downvote)** — Authenticated users can rate maps from the map detail page.
-- **Map favoriting** — Authenticated users can add maps to their favorites.
+- **COI Hub Login** — Sign in via magic link (browser → email → paste flow). Cookies stored locally for authenticated requests. Required for voting and favoriting.
+- **Voting (upvote/downvote)** — Authenticated users can rate maps, mods, and blueprints from their detail pages.
+- **Favoriting** — Authenticated users can add maps, mods, and blueprints to their favorites.
 - **Status bar counters** — Maps count and blueprints count displayed alongside mods count in the status bar.
 - **Top bar section tabs** — Blueprints, Maps, and Mods tab buttons with color-coded active states.
 - **Collapsible navigation sidebar** — Quick section switching with hover-to-expand (48px → 160px). Shows active section with colored highlight.
-- **Play button** — Launches Captain of Industry directly from the app via `steam://rungameid/2054330`.
+- **Play button** — Launches Captain of Industry directly from the app via `steam://rungameid/1594320`.
 - **Italian language support** — Full i18n for `it` locale.
+- **Back button navigation** — All detail pages (Mod, Blueprint, Map) now have a consistent yellow back button inside the content container.
+- **COI Hub background** — Detail pages now use the same `background.jpg` as the website for a more immersive look.
 
 ### Changed
 - **Default view changed** to **Blueprints** (was Mods).
 - Blueprint and Map lists stay mounted when hidden to preserve scroll position (`display: none`).
 - Login state persisted across app restarts via SQLite cookie store.
+- **Play button restyled** — Now uses a blue background with white text and play icon (Steam-like), replacing the small green icon-only button.
+- **Detail page layouts aligned with COI Hub website** — ModDetail and BlueprintDetail now use centered max-width containers (1140px), full-page background image, and a dark content container with rounded corners. MapDetail content container similarly restructured.
+- **ModDetail header restructured** — Removed separate stats bar and standalone vote/fav section; moved to compound vote/favorite buttons in the meta bar, matching the website's mv2-meta-bar pattern.
+- **BlueprintDetail header restructured** — Wrapped in a darkerGrey card with meta bar and compound vote/favorite buttons.
+- **MapDetail resources table** — Alternating row colors and dark content container background.
 
 ### Fixed
 - `login_submit_magic_link` properly validates magic link expiration and returns meaningful error messages.
+- `launch_game` now uses the correct Steam App ID (1594320 instead of 2054330).
+- Scan logging now outputs detailed per-mod status to the terminal during `scan_installed_mods`.
 
 ## [0.4.1] – 2026-05-27
 

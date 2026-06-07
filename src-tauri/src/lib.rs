@@ -9,14 +9,14 @@ mod scraper;
 use commands::{
     check_app_update_on_startup, check_for_update, create_profile, delete_profile,
     detect_game_version, detect_game_version_from_path, detect_mods_folder, download_blueprint,
-    download_map, export_profile, favorite_map, get_active_profile, get_app_version,
-    get_blueprint_details, get_blueprints, get_changelog, get_map_details, get_maps,
+    download_map, export_profile, favorite_blueprint, favorite_map, favorite_mod, get_active_profile,
+    get_app_version, get_blueprint_details, get_blueprints, get_changelog, get_map_details, get_maps,
     get_maps_folder_size, get_mod_details, get_mods, get_mods_folder_size, get_profiles, get_setting, import_profile,
-    install_mod, install_update, login_logout,     launch_game, login_open_browser, login_status,
+    install_mod, install_update, launch_game, login_logout, login_open_browser, login_status,
     login_submit_magic_link, pick_folder, rename_profile, run_blueprint_scrape, run_map_scrape,
     run_scan_installed, run_scrape, scan_installed_mods, set_default_profile, set_setting,
     switch_profile, sync_blueprints, sync_maps, sync_mods, uninstall_mod, update_all_mods,
-    update_mod, vote_map,
+    update_mod, vote_blueprint, vote_map, vote_mod,
 };
 use db::Database;
 use tauri::Manager;
@@ -128,6 +128,10 @@ pub fn run() {
             login_logout,
             vote_map,
             favorite_map,
+            vote_mod,
+            favorite_mod,
+            vote_blueprint,
+            favorite_blueprint,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

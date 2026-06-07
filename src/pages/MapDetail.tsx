@@ -234,6 +234,10 @@ export function MapDetail({
 				flexDirection: "column",
 				minHeight: 0,
 				position: "relative",
+				backgroundImage: "url(/background.jpg)",
+				backgroundSize: "cover",
+				backgroundAttachment: "fixed",
+				backgroundPosition: "center center",
 			}}
 		>
 			{loading && (
@@ -257,25 +261,25 @@ export function MapDetail({
 				</div>
 			)}
 			<div ref={scrollRef} style={{ overflowY: "auto", flex: 1 }}>
-				<div style={{ maxWidth: "1200px", margin: "0 auto", padding: "24px" }}>
-					<button
-						type="button"
-						onClick={onBack}
-						style={{
-							display: "flex",
-							alignItems: "center",
-							gap: "6px",
-							background: "none",
-							border: "none",
-							color: C.metaGrey,
-							cursor: "pointer",
-							fontSize: "13px",
-							padding: "0 0 16px",
-						}}
-					>
-						<ArrowLeft size={15} />
-						{t("common.btn_back")}
-					</button>
+				<div style={{ maxWidth: "1200px", margin: "0 auto", padding: "24px", backgroundColor: C.darkerGrey, borderRadius: "8px" }}>
+				<button
+					type="button"
+					onClick={onBack}
+					style={{
+						display: "flex",
+						alignItems: "center",
+						gap: "6px",
+						background: "none",
+						border: "none",
+						color: C.yellow,
+						cursor: "pointer",
+						fontSize: "13px",
+						padding: "0 0 16px",
+					}}
+				>
+					<ArrowLeft size={15} />
+					{t("common.btn_back")}
+				</button>
 
 					<div style={{ display: "flex", gap: "24px", marginBottom: "20px" }}>
 						<div style={{ width: "360px", flexShrink: 0 }}>
@@ -883,11 +887,12 @@ export function MapDetail({
 												}}
 											>
 												<tbody>
-													{details.resources.map((r) => (
+													{details.resources.map((r, i) => (
 														<tr
 															key={r.name}
 															style={{
 																borderBottom: `1px solid ${C.borderGrey}`,
+																backgroundColor: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.03)",
 															}}
 														>
 															<td

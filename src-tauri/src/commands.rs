@@ -1489,30 +1489,50 @@ pub async fn scan_installed_mods(
     let pool_base = get_pool_base(&app)?;
     let mut found_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
 
+    println!("[SCAN] mods_folder: {}", folder);
+    println!("[SCAN] profile_id: {}", profile_id);
+    println!("[SCAN] mods in database: {}", all_mods.len());
+    for m in &all_mods {
+        println!(
+            "  [SCAN] DB mod: id={}, name={}, url={}, is_installed={}",
+            m.id, m.name, m.url, m.is_installed
+        );
+    }
+
     for entry in std::fs::read_dir(folder_path).map_err(|e| e.to_string())? {
         let entry = entry.map_err(|e| e.to_string())?;
         let path = entry.path();
-        if !path.is_dir() && !path.is_symlink() {
+        let file_name = entry.file_name().to_string_lossy().to_string();
+        let is_dir = path.is_dir();
+        let is_sym = path.is_symlink();
+
+        println!("[SCAN] entry: {} (dir={}, symlink={})", file_name, is_dir, is_sym);
+
+        if !is_dir && !is_sym {
+            println!("  [SCAN]   -> skip: not dir nor symlink");
             continue;
         }
 
-        let folder_name = entry.file_name().to_string_lossy().to_lowercase();
+        let folder_name_lower = file_name.to_lowercase();
 
         // For symlinks, follow the link to find the real path; otherwise use the
         // directory itself. We use std::fs::canonicalize so both cases work on
         // Windows (where read_link may return a device-namespace path) and on
         // systems where mods were installed via the copy fallback (plain dirs).
-        let manifest_path = std::fs::canonicalize(&path)
-            .unwrap_or_else(|_| path.clone())
-            .join("manifest.json");
+        let canonical = std::fs::canonicalize(&path);
+        let resolved = canonical.as_deref().unwrap_or(&path);
+        let manifest_path = resolved.join("manifest.json");
 
         if !manifest_path.exists() {
+            println!("  [SCAN]   -> skip: manifest.json not found at {:?}", manifest_path);
             continue;
         }
         let Ok(manifest_str) = std::fs::read_to_string(&manifest_path) else {
+            println!("  [SCAN]   -> skip: could not read manifest.json");
             continue;
         };
         let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&manifest_str) else {
+            println!("  [SCAN]   -> skip: could not parse manifest.json");
             continue;
         };
         let manifest_id = manifest["id"].as_str().unwrap_or("").to_lowercase();
@@ -1527,12 +1547,30 @@ pub async fn scan_installed_mods(
             .trim_start_matches('v')
             .to_string();
 
+        println!(
+            "  [SCAN]   manifest: id='{}', display_name='{}', version='{}'",
+            manifest_id, display_name, version
+        );
+
         let matched = all_mods.iter().find(|m| {
             let slug = m.url.split('/').last().unwrap_or("").to_lowercase();
-            slug == manifest_id
-                || slug == folder_name
-                || m.name.to_lowercase() == display_name
-                || m.name.to_lowercase().replace(' ', "-") == manifest_id
+            let by_slug_id = slug == manifest_id;
+            let by_slug_folder = slug == folder_name_lower;
+            let by_name = m.name.to_lowercase() == display_name;
+            let by_name_replaced = m.name.to_lowercase().replace(' ', "-") == manifest_id;
+
+            if by_slug_id || by_slug_folder || by_name || by_name_replaced {
+                println!(
+                    "  [SCAN]   MATCH: mod '{}' (id={}) matched via slug='{}' folder='{}' name='{}'",
+                    m.name, m.id, slug, folder_name_lower, display_name
+                );
+                if by_slug_id { println!("  [SCAN]     reason: slug == manifest_id"); }
+                if by_slug_folder { println!("  [SCAN]     reason: slug == folder_name"); }
+                if by_name { println!("  [SCAN]     reason: name == display_name"); }
+                if by_name_replaced { println!("  [SCAN]     reason: name_replaced == manifest_id"); }
+            }
+
+            by_slug_id || by_slug_folder || by_name || by_name_replaced
         });
 
         if let Some(m) = matched {
@@ -1541,8 +1579,14 @@ pub async fn scan_installed_mods(
             let pool_path_str = if pool_dir.exists() {
                 Some(pool_dir.to_str().unwrap_or("").to_string())
             } else {
+                println!("  [SCAN]   pool dir does not exist: {:?}", pool_dir);
                 None
             };
+
+            println!(
+                "  [SCAN]   adding profile_mod: mod_id={}, version={}, folder={}, pool={:?}",
+                m.id, version, actual_folder, pool_path_str
+            );
 
             db.add_profile_mod(
                 &profile_id,
@@ -1554,6 +1598,8 @@ pub async fn scan_installed_mods(
             .await
             .map_err(|e| e.to_string())?;
             found_ids.insert(m.id.clone());
+        } else {
+            println!("  [SCAN]   no match found in database for this mod folder");
         }
     }
 
@@ -1791,4 +1837,38 @@ pub async fn favorite_map(
     map_url: String,
 ) -> Result<(), String> {
     crate::login::favorite_map(&db, &map_url).await
+}
+
+#[tauri::command]
+pub async fn vote_mod(
+    db: State<'_, Database>,
+    mod_url: String,
+    rating: u8,
+) -> Result<(), String> {
+    crate::login::vote_mod(&db, &mod_url, rating).await
+}
+
+#[tauri::command]
+pub async fn favorite_mod(
+    db: State<'_, Database>,
+    mod_url: String,
+) -> Result<(), String> {
+    crate::login::favorite_mod(&db, &mod_url).await
+}
+
+#[tauri::command]
+pub async fn vote_blueprint(
+    db: State<'_, Database>,
+    blueprint_url: String,
+    rating: u8,
+) -> Result<(), String> {
+    crate::login::vote_blueprint(&db, &blueprint_url, rating).await
+}
+
+#[tauri::command]
+pub async fn favorite_blueprint(
+    db: State<'_, Database>,
+    blueprint_url: String,
+) -> Result<(), String> {
+    crate::login::favorite_blueprint(&db, &blueprint_url).await
 }

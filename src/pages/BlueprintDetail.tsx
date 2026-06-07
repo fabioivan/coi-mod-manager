@@ -7,7 +7,10 @@ import {
 	ClipboardCheck,
 	ExternalLink,
 	Eye,
+	Heart,
 	Loader2,
+	ThumbsDown,
+	ThumbsUp,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -36,7 +39,6 @@ const C = {
 export function BlueprintDetail({
 	blueprintId,
 	onBack,
-	onSelectAuthor,
 	allBlueprints,
 }: BlueprintDetailProps) {
 	const { t, i18n } = useTranslation();
@@ -48,6 +50,8 @@ export function BlueprintDetail({
 	const thumbRowRef = useRef<HTMLDivElement>(null);
 	const [downloading, setDownloading] = useState(false);
 	const [downloadPath, setDownloadPath] = useState<string | null>(null);
+	const [voteLoading, setVoteLoading] = useState<string | null>(null);
+	const [favLoading, setFavLoading] = useState(false);
 	const { scrollRef, show: showScrollTop, scrollToTop } = useScrollTop();
 
 	const localBlueprint = useMemo(
@@ -160,6 +164,29 @@ export function BlueprintDetail({
 		}
 	};
 
+	const handleVote = async (rating: number) => {
+		if (!details) return;
+		const key = `vote-${rating}`;
+		setVoteLoading(key);
+		try {
+			await invoke("vote_blueprint", { blueprintUrl: details.url, rating });
+		} catch (err) {
+			console.error("Vote failed:", err);
+		}
+		setVoteLoading(null);
+	};
+
+	const handleFavorite = async () => {
+		if (!details) return;
+		setFavLoading(true);
+		try {
+			await invoke("favorite_blueprint", { blueprintUrl: details.url });
+		} catch (err) {
+			console.error("Favorite failed:", err);
+		}
+		setFavLoading(false);
+	};
+
 	return (
 		<div
 			style={{
@@ -168,6 +195,10 @@ export function BlueprintDetail({
 				flexDirection: "column",
 				minHeight: 0,
 				position: "relative",
+				backgroundImage: "url(/background.jpg)",
+				backgroundSize: "cover",
+				backgroundAttachment: "fixed",
+				backgroundPosition: "center center",
 			}}
 		>
 			{loading && (
@@ -191,7 +222,7 @@ export function BlueprintDetail({
 				</div>
 			)}
 			<div ref={scrollRef} style={{ overflowY: "auto", flex: 1 }}>
-				<div style={{ padding: "24px" }}>
+				<div style={{ maxWidth: "1140px", margin: "0 auto", padding: "24px", backgroundColor: "#2f2f2f", borderRadius: "8px" }}>
 					<button
 						type="button"
 						onClick={onBack}
@@ -201,7 +232,7 @@ export function BlueprintDetail({
 							gap: "6px",
 							background: "none",
 							border: "none",
-							color: C.metaGrey,
+							color: C.yellow,
 							cursor: "pointer",
 							fontSize: "13px",
 							padding: "0 0 16px",
@@ -211,7 +242,8 @@ export function BlueprintDetail({
 						{t("common.btn_back")}
 					</button>
 
-					<div style={{ display: "flex", gap: "24px", marginBottom: "20px" }}>
+					<div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "20px", backgroundColor: C.darkerGrey, border: `1px solid ${C.borderGrey}`, borderRadius: "8px", padding: "20px" }}>
+						<div style={{ display: "flex", gap: "24px" }}>
 						<div style={{ width: "360px", flexShrink: 0 }}>
 							<div
 								style={{
@@ -270,46 +302,15 @@ export function BlueprintDetail({
 								{fallbackBp.name}
 							</h1>
 
-							<div
-								style={{
-									display: "grid",
-									gridTemplateColumns: "repeat(3, 1fr)",
-									gap: "12px",
-									background: C.darkerGrey,
-									border: `1px solid ${C.borderGrey}`,
-									borderRadius: "8px",
-									padding: "16px",
-								}}
-							>
-								<MetaItem
-									label={t("blueprintDetail.author")}
-									value={fallbackBp.author}
-									onValueClick={fallbackBp.author ? () => { onSelectAuthor(fallbackBp.author!); onBack(); } : undefined}
-								/>
-								<MetaItem
-									label={t("blueprintDetail.downloads")}
-									value={fallbackBp.downloads.toLocaleString()}
-								/>
-								<MetaItem
-									label={t("blueprintDetail.vote_score")}
-									value={
-										fallbackBp.approval_pct >= 0
-											? `${fallbackBp.approval_pct}%`
-											: "—"
-									}
-								/>
-								<MetaItem
-									label={t("blueprintDetail.favorites")}
-									value={fallbackBp.favorites.toLocaleString()}
-								/>
-								<MetaItem
-									label={t("blueprintDetail.updated")}
-									value={formattedDate ?? "—"}
-								/>
-							</div>
+
 
 							<div
-								style={{ display: "flex", gap: "8px", alignItems: "center" }}
+								style={{
+									display: "flex",
+									flexWrap: "wrap",
+									gap: "6px",
+									alignItems: "stretch",
+								}}
 							>
 								<a
 									href={fallbackBp.url}
@@ -318,6 +319,7 @@ export function BlueprintDetail({
 									style={{
 										display: "inline-flex",
 										alignItems: "center",
+										justifyContent: "center",
 										gap: "6px",
 										padding: "8px 16px",
 										background: C.yellow,
@@ -326,8 +328,8 @@ export function BlueprintDetail({
 										fontWeight: 700,
 										borderRadius: "6px",
 										textDecoration: "none",
-										width: "fit-content",
-										textTransform: "uppercase",
+										minWidth: "110px",
+										flex: "1 0 auto",
 									}}
 								>
 									<ExternalLink size={14} />
@@ -342,6 +344,7 @@ export function BlueprintDetail({
 									style={{
 										display: "inline-flex",
 										alignItems: "center",
+										justifyContent: "center",
 										gap: "6px",
 										padding: "8px 16px",
 										background: downloading
@@ -355,9 +358,8 @@ export function BlueprintDetail({
 										borderRadius: "6px",
 										border: "none",
 										cursor: downloading ? "default" : "pointer",
-										textTransform: "uppercase",
 										minWidth: "110px",
-										justifyContent: "center",
+										flex: "1 0 auto",
 									}}
 								>
 									{downloading ? (
@@ -373,6 +375,45 @@ export function BlueprintDetail({
 											? t("blueprintDetail.copied")
 											: t("blueprintDetail.copy")}
 								</button>
+
+
+							</div>
+						</div>
+						</div>
+
+						{/* Meta Bar — Downloads, Vote %, Favorites, Updated + Vote/Favorite compound buttons */}
+						<div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "16px", borderTop: `1px solid ${C.grey}`, paddingTop: "12px" }}>
+							<span style={{ fontSize: "12px", color: C.metaGrey }}>{t("blueprintDetail.downloads")}: <strong style={{ color: C.lightGrey }}>{fallbackBp.downloads.toLocaleString()}</strong></span>
+							<span style={{ fontSize: "12px", color: C.metaGrey }}>{t("blueprintDetail.vote_score")}: <strong style={{ color: C.lightGrey }}>{fallbackBp.approval_pct >= 0 ? `${fallbackBp.approval_pct}%` : "—"}</strong></span>
+							<span style={{ fontSize: "12px", color: C.metaGrey }}>{t("blueprintDetail.favorites")}: <strong style={{ color: C.lightGrey }}>{fallbackBp.favorites.toLocaleString()}</strong></span>
+							<span style={{ fontSize: "12px", color: C.metaGrey }}>{t("blueprintDetail.updated")}: <strong style={{ color: C.lightGrey }}>{formattedDate ?? "—"}</strong></span>
+
+							<div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "8px" }}>
+								{/* Vote compound button */}
+								<div style={{ display: "flex", alignItems: "center", borderRadius: "4px", overflow: "hidden" }}>
+									<button type="button" onClick={() => handleVote(1)} disabled={voteLoading === "vote-1"} title="Upvote blueprint"
+										style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "6px 10px", background: C.yellow, color: C.darkGrey, fontSize: "11px", border: "none", cursor: voteLoading === "vote-1" ? "default" : "pointer" }}>
+										{voteLoading === "vote-1" ? <Loader2 size={12} className="animate-spin" /> : <ThumbsUp size={12} />}
+									</button>
+									<button type="button" onClick={() => handleVote(0)} disabled={voteLoading === "vote-0"} title="Downvote blueprint"
+										style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "6px 10px", background: C.yellow, color: C.darkGrey, fontSize: "11px", border: "none", borderLeft: `1px solid ${C.darkGrey}`, cursor: voteLoading === "vote-0" ? "default" : "pointer" }}>
+										{voteLoading === "vote-0" ? <Loader2 size={12} className="animate-spin" /> : <ThumbsDown size={12} />}
+									</button>
+									<span style={{ display: "inline-flex", alignItems: "center", padding: "6px 10px", background: C.grey, color: C.lightGrey, fontSize: "11px", fontWeight: 700, minWidth: "36px", justifyContent: "center" }}>
+										{fallbackBp.approval_pct >= 0 ? `${fallbackBp.approval_pct}%` : "—"}
+									</span>
+								</div>
+
+								{/* Favorite compound button */}
+								<div style={{ display: "flex", alignItems: "center", borderRadius: "4px", overflow: "hidden" }}>
+									<button type="button" onClick={handleFavorite} disabled={favLoading} title="Add to favorites"
+										style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "6px 10px", background: C.yellow, color: C.darkGrey, fontSize: "11px", border: "none", cursor: favLoading ? "default" : "pointer" }}>
+										{favLoading ? <Loader2 size={12} className="animate-spin" /> : <Heart size={12} />}
+									</button>
+									<span style={{ display: "inline-flex", alignItems: "center", padding: "6px 10px", background: C.grey, color: C.lightGrey, fontSize: "11px", fontWeight: 700, minWidth: "36px", justifyContent: "center" }}>
+										{fallbackBp.favorites.toLocaleString()}
+									</span>
+								</div>
 							</div>
 						</div>
 					</div>
@@ -691,42 +732,4 @@ export function BlueprintDetail({
 	);
 }
 
-function MetaItem({ label, value, onValueClick }: { label: string; value: string; onValueClick?: () => void }) {
-	return (
-		<div>
-			<div
-				style={{
-					fontSize: "11px",
-					color: C.metaGrey,
-					marginBottom: "4px",
-					fontWeight: 600,
-				}}
-			>
-				{label}
-			</div>
-			{onValueClick ? (
-				<button
-					type="button"
-					onClick={onValueClick}
-					style={{
-						fontSize: "14px",
-						color: C.yellow,
-						fontWeight: 700,
-						background: "none",
-						border: "none",
-						padding: 0,
-						cursor: "pointer",
-						textDecoration: "underline",
-						textUnderlineOffset: "3px",
-					}}
-				>
-					{value}
-				</button>
-			) : (
-				<div style={{ fontSize: "14px", color: C.lightGrey, fontWeight: 700 }}>
-					{value}
-				</div>
-			)}
-		</div>
-	);
-}
+
