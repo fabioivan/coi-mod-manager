@@ -1751,7 +1751,7 @@ pub async fn login_open_browser(app: tauri::AppHandle) -> Result<(), String> {
 pub async fn launch_game(app: tauri::AppHandle) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
     app.opener()
-        .open_url("steam://rungameid/2054330", None::<&str>)
+        .open_url("steam://rungameid/1594320", None::<&str>)
         .map_err(|e| e.to_string())?;
     Ok(())
 }
