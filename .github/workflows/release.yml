@@ -64,19 +64,23 @@ jobs:
             ${{ contains(github.ref_name, '-') && '## 🚧 Pre-release' || '## 🎮 Release' }} — CoI Mod Manager ${{ github.ref_name }}
 
             ### Added
-            - Stable pool directories — user-created files (saves, settings) persist across mod updates
-            - `merge_into_dir` and `update_mod_link` functions for safer mod updates
-            - Null safety in `splitTags` and mod list calculations
-            - Proper effect cancellation and stable callback refs
+            - **🗺️ Maps section** — Browse, search, and download community maps. Full detail page with gallery, resources, starting locations, version history, and comments.
+            - **🔷 Blueprints section** — Browse and search blueprints. Copy blueprint strings to clipboard with one click.
+            - **🔐 COI Hub Login** — Sign in via magic link to vote and favorite maps directly from the app.
+            - Map voting (upvote/downvote) and favoriting for authenticated users
+            - Collapsible navigation sidebar for quick section switching
+            - Top bar section tabs (Blueprints, Maps, Mods) with color-coded active states
+            - Play button to launch Captain of Industry directly from the app
+            - Status bar counters for maps and blueprints
+            - Italian language support
 
             ### Changed
-            - Settings tab removed from navigation sidebar (accessible via gear icon)
-            - Pool extraction no longer versioned — each mod has a single stable pool directory
-            - `extract_to_pool` preserves folder name across updates
+            - Default view changed to Blueprints (was Mods)
+            - Blueprint and Map lists stay mounted when hidden to preserve scroll position
+            - Login state persisted across app restarts via SQLite cookie store
 
             ### Fixed
-            - Windows `tasklist` now uses `CREATE_NO_WINDOW` flag — no console flash
-            - `import_profile`, `scan_installed_mods` updated for stable pool structure
+            - Magic link validation now returns meaningful error messages on expiration
 
           releaseDraft: false
           prerelease: ${{ contains(github.ref_name, '-') }}

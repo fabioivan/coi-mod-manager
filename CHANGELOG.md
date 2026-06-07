@@ -1,6 +1,26 @@
 # Changelog
 
-## [unreleased]
+## [0.5.0] – 2026-06-07
+
+### Added
+- **Maps section** — Browse, search, and download community maps from `hub.coigame.com`. Full detail page with gallery, resources table, starting locations, version history, and comments. Infinite scroll grid with sort/filter controls.
+- **Blueprints section** — Browse and search blueprints. Copy blueprint strings to clipboard with one click. Detail page with metadata and description. Infinite scroll grid with sort/filter controls.
+- **COI Hub Login** — Sign in via magic link (browser → email → paste flow). Cookies stored locally for authenticated requests. Required for map voting and favoriting.
+- **Map voting (upvote/downvote)** — Authenticated users can rate maps from the map detail page.
+- **Map favoriting** — Authenticated users can add maps to their favorites.
+- **Status bar counters** — Maps count and blueprints count displayed alongside mods count in the status bar.
+- **Top bar section tabs** — Blueprints, Maps, and Mods tab buttons with color-coded active states.
+- **Collapsible navigation sidebar** — Quick section switching with hover-to-expand (48px → 160px). Shows active section with colored highlight.
+- **Play button** — Launches Captain of Industry directly from the app via `steam://rungameid/2054330`.
+- **Italian language support** — Full i18n for `it` locale.
+
+### Changed
+- **Default view changed** to **Blueprints** (was Mods).
+- Blueprint and Map lists stay mounted when hidden to preserve scroll position (`display: none`).
+- Login state persisted across app restarts via SQLite cookie store.
+
+### Fixed
+- `login_submit_magic_link` properly validates magic link expiration and returns meaningful error messages.
 
 ## [0.4.1] – 2026-05-27
 
