@@ -1,5 +1,5 @@
 use crate::db::Database;
-use crate::models::{Blueprint, ExportData, ExportMod, Mod, Profile};
+use crate::models::{Blueprint, ExportData, ExportMod, MapItem, Mod, Profile};
 use base64::{engine::general_purpose, Engine as _};
 use std::sync::OnceLock;
 use tauri::{Emitter, Manager, State};
@@ -548,8 +548,7 @@ fn update_mod_link(pool_dir: &std::path::Path, link: &std::path::Path) -> Result
         }
         // Already pointing at pool_dir — pool was updated in-place, nothing to do.
     } else if link.is_dir() {
-        merge_into_dir(pool_dir, link)
-            .map_err(|e| format!("Failed to update mod files: {}", e))?;
+        merge_into_dir(pool_dir, link).map_err(|e| format!("Failed to update mod files: {}", e))?;
     } else {
         create_symlink_or_copy(pool_dir, link)?;
     }
@@ -875,6 +874,104 @@ pub async fn sync_blueprints(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+pub async fn get_maps(db: State<'_, Database>) -> Result<Vec<MapItem>, String> {
+    db.get_all_maps().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn sync_maps(app: tauri::AppHandle) -> Result<(), String> {
+    run_map_scrape(&app).await;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_map_details(url: String) -> Result<crate::map_scraper::MapDetails, String> {
+    let client = reqwest::Client::builder()
+        .user_agent("CoI-Mod-Manager/1.0")
+        .build()
+        .map_err(|e| e.to_string())?;
+    crate::map_scraper::scrape_map_details(&client, &url).await
+}
+
+#[tauri::command]
+pub async fn download_map(
+    app: tauri::AppHandle,
+    db: State<'_, Database>,
+    map_id: String,
+    download_url: String,
+    map_name: Option<String>,
+) -> Result<String, String> {
+    let mods_folder = db
+        .get_setting("mods_folder")
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or("Mods folder not configured. Go to Settings.")?;
+
+    let mods_path = std::path::Path::new(&mods_folder);
+    let maps_folder = mods_path
+        .parent()
+        .map(|p| p.join("Maps"))
+        .unwrap_or_else(|| {
+            let mut p = mods_path.to_path_buf();
+            p.pop();
+            p.join("Maps")
+        });
+
+    let client = http_client();
+    let resp = client
+        .get(&download_url)
+        .send()
+        .await
+        .map_err(|e| format!("Download request failed: {}", e))?;
+
+    let bytes = resp
+        .bytes()
+        .await
+        .map_err(|e| format!("Failed to read download: {}", e))?
+        .to_vec();
+
+    std::fs::create_dir_all(&maps_folder).map_err(|e| e.to_string())?;
+
+    let file_name = if let Some(ref name) = map_name {
+        let sanitized: String = name
+            .chars()
+            .filter(|c| !matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|'))
+            .collect();
+        format!("{}.map", sanitized.trim())
+    } else {
+        format!("{}.map", map_id)
+    };
+    let file_path = maps_folder.join(&file_name);
+    std::fs::write(&file_path, &bytes).map_err(|e| e.to_string())?;
+
+    db.mark_map_downloaded(&map_id)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let _ = app.emit("maps-updated", ());
+
+    Ok(file_path.to_string_lossy().to_string())
+}
+
+pub async fn run_map_scrape(app: &tauri::AppHandle) {
+    match crate::map_scraper::scrape_all_maps().await {
+        Ok(maps) => {
+            let db = app.state::<Database>();
+            for m in &maps {
+                if let Err(e) = db.upsert_map(m).await {
+                    eprintln!("map upsert error: {e}");
+                }
+            }
+            let _ = app.emit("maps-updated", maps.len());
+        }
+        Err(e) => {
+            eprintln!("map scraping error: {e}");
+            let _ = app.emit("mods-sync-error", e.to_string());
+        }
+    }
+}
+
 pub async fn run_blueprint_scrape(app: &tauri::AppHandle) {
     match crate::blueprint_scraper::scrape_all_blueprints().await {
         Ok(blueprints) => {
@@ -1058,7 +1155,6 @@ async fn extract_to_pool(
     Ok((folder_name, pool_dir))
 }
 
-
 async fn get_active_profile_id(db: &Database) -> Result<String, String> {
     db.get_active_profile_id()
         .await
@@ -1174,15 +1270,8 @@ pub async fn install_mod(
     let target_version = version.as_deref().unwrap_or(&mod_entry.version_available);
     let dl_url = version_download_url.as_deref();
 
-    let (folder_name, pool_dir) = extract_to_pool(
-        &app,
-        &mod_id,
-        &mod_entry.name,
-        &mod_page_url,
-        dl_url,
-        None,
-    )
-    .await?;
+    let (folder_name, pool_dir) =
+        extract_to_pool(&app, &mod_id, &mod_entry.name, &mod_page_url, dl_url, None).await?;
 
     let link = std::path::Path::new(&folder).join(&folder_name);
     update_mod_link(&pool_dir, &link)?;
@@ -1620,4 +1709,50 @@ pub async fn get_mod_details(
         .build()
         .map_err(|e| e.to_string())?;
     crate::scraper::scrape_mod_details(&client, &mod_page_url).await
+}
+
+#[tauri::command]
+pub async fn login_open_browser(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    app.opener()
+        .open_url(crate::login::login_url(), None::<&str>)
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn login_submit_magic_link(
+    db: State<'_, Database>,
+    magic_link: String,
+) -> Result<String, String> {
+    let cookies = crate::login::process_magic_link(&magic_link).await?;
+    crate::login::store_cookies(&db, &cookies).await?;
+    Ok(cookies)
+}
+
+#[tauri::command]
+pub async fn login_status(db: State<'_, Database>) -> Result<bool, String> {
+    Ok(crate::login::is_logged_in(&db).await)
+}
+
+#[tauri::command]
+pub async fn login_logout(db: State<'_, Database>) -> Result<(), String> {
+    crate::login::clear_cookies(&db).await
+}
+
+#[tauri::command]
+pub async fn vote_map(
+    db: State<'_, Database>,
+    map_url: String,
+    rating: u8,
+) -> Result<(), String> {
+    crate::login::vote_map(&db, &map_url, rating).await
+}
+
+#[tauri::command]
+pub async fn favorite_map(
+    db: State<'_, Database>,
+    map_url: String,
+) -> Result<(), String> {
+    crate::login::favorite_map(&db, &map_url).await
 }

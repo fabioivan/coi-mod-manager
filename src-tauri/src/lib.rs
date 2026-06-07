@@ -1,18 +1,22 @@
 mod blueprint_scraper;
 mod commands;
 mod db;
+mod login;
+mod map_scraper;
 mod models;
 mod scraper;
 
 use commands::{
     check_app_update_on_startup, check_for_update, create_profile, delete_profile,
     detect_game_version, detect_game_version_from_path, detect_mods_folder, download_blueprint,
-    export_profile, get_active_profile, get_app_version, get_blueprint_details, get_blueprints,
-    get_changelog, get_mod_details, get_mods, get_mods_folder_size, get_profiles, get_setting,
-    import_profile, install_mod, install_update, pick_folder, rename_profile,
-    run_blueprint_scrape, run_scan_installed, run_scrape, scan_installed_mods, set_default_profile,
-    set_setting, switch_profile, sync_blueprints, sync_mods, uninstall_mod, update_all_mods,
-    update_mod,
+    download_map, export_profile, favorite_map, get_active_profile, get_app_version,
+    get_blueprint_details, get_blueprints, get_changelog, get_map_details, get_maps,
+    get_mod_details, get_mods, get_mods_folder_size, get_profiles, get_setting, import_profile,
+    install_mod, install_update, login_logout, login_open_browser, login_status,
+    login_submit_magic_link, pick_folder, rename_profile, run_blueprint_scrape, run_map_scrape,
+    run_scan_installed, run_scrape, scan_installed_mods, set_default_profile, set_setting,
+    switch_profile, sync_blueprints, sync_maps, sync_mods, uninstall_mod, update_all_mods,
+    update_mod, vote_map,
 };
 use db::Database;
 use tauri::Manager;
@@ -53,6 +57,14 @@ pub fn run() {
                 });
             }
 
+            // Sync maps in background
+            {
+                let handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    run_map_scrape(&handle).await;
+                });
+            }
+
             // Scan mods instalados em background se pasta configurada
             {
                 let handle = app.handle().clone();
@@ -72,6 +84,10 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            get_maps,
+            get_map_details,
+            download_map,
+            sync_maps,
             get_blueprints,
             get_blueprint_details,
             download_blueprint,
@@ -104,6 +120,12 @@ pub fn run() {
             get_mods_folder_size,
             get_app_version,
             get_changelog,
+            login_open_browser,
+            login_submit_magic_link,
+            login_status,
+            login_logout,
+            vote_map,
+            favorite_map,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

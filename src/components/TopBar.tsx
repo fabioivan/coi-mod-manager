@@ -1,7 +1,9 @@
-import { ArrowLeft, Download, RefreshCw, Settings, User } from "lucide-react";
+import { ArrowLeft, Download, LogIn, RefreshCw, Settings, User } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import type { TabView } from "@/components/NavSidebar";
 import { Button } from "@/components/ui/button";
 import type { Profile } from "@/types/profile";
+import type { LoginStatus } from "@/types/login";
 
 interface UpdateInfo {
 	version: string;
@@ -13,15 +15,18 @@ interface TopBarProps {
 	onRefresh: () => void;
 	onUpdateAll: () => void;
 	onBlueprintSync: () => void;
+	onMapSync: () => void;
 	blueprintSyncing: boolean;
+	mapSyncing: boolean;
 	loading: boolean;
-	view: "blueprints" | "mods" | "settings" | "details" | "blueprint-details";
-	onViewChange: (
-		v: "blueprints" | "mods" | "settings" | "details" | "blueprint-details",
-	) => void;
+	view: TabView;
+	onViewChange: (v: TabView) => void;
 	appUpdate?: UpdateInfo | null;
 	onInstallUpdate?: () => void;
 	activeProfile?: Profile | null;
+	loginStatus?: LoginStatus;
+	onLoginOpen?: () => void;
+	onLoginLogout?: () => void;
 }
 
 const C = {
@@ -36,13 +41,18 @@ export function TopBar({
 	onRefresh,
 	onUpdateAll,
 	onBlueprintSync,
+	onMapSync,
 	blueprintSyncing,
+	mapSyncing,
 	loading,
 	view,
 	onViewChange,
 	appUpdate,
 	onInstallUpdate,
 	activeProfile,
+	loginStatus,
+	onLoginOpen,
+	onLoginLogout,
 }: TopBarProps) {
 	const { t } = useTranslation();
 	return (
@@ -110,7 +120,7 @@ export function TopBar({
 						</Button>
 					</>
 				)}
-				{outdatedCount > 0 && view !== "blueprints" && (
+				{outdatedCount > 0 && view !== "blueprints" && view !== "maps" && (
 					<>
 						<span
 							style={{ fontSize: "12px", color: C.yellow, fontWeight: 600 }}
@@ -130,6 +140,25 @@ export function TopBar({
 			</div>
 
 			<div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+				<Button
+					onClick={loginStatus === "signed_in" ? onLoginLogout : onLoginOpen}
+					variant="ghost"
+					size="sm"
+					style={{ padding: "6px 10px", height: "auto" }}
+					className="text-[11px] text-muted-foreground font-semibold tracking-wide"
+				>
+					<LogIn
+						size={12}
+						style={{
+							color: loginStatus === "signed_in" ? "#81c784" : undefined,
+						}}
+					/>
+					{loginStatus === "signed_in"
+						? t("login.sign_out")
+						: loginStatus === "loading"
+							? "..."
+							: t("login.sign_in")}
+				</Button>
 				{view === "blueprints" && (
 					<Button
 						onClick={onBlueprintSync}
@@ -146,6 +175,19 @@ export function TopBar({
 						{blueprintSyncing ? t("topBar.btn_syncing") : "Sync"}
 					</Button>
 				)}
+				{view === "maps" && (
+					<Button
+						onClick={onMapSync}
+						disabled={mapSyncing}
+						variant="ghost"
+						size="sm"
+						style={{ padding: "6px 14px", height: "auto" }}
+						className="text-[12px] text-muted-foreground uppercase font-semibold tracking-wide"
+					>
+						<RefreshCw size={12} className={mapSyncing ? "animate-spin" : ""} />
+						{mapSyncing ? t("topBar.btn_syncing") : "Sync"}
+					</Button>
+				)}
 				{view === "mods" && (
 					<Button
 						onClick={onRefresh}
@@ -159,10 +201,18 @@ export function TopBar({
 						{loading ? t("topBar.btn_syncing") : t("topBar.btn_sync")}
 					</Button>
 				)}
-				{(view === "details" || view === "blueprint-details") && (
+				{(view === "details" ||
+					view === "blueprint-details" ||
+					view === "map-details") && (
 					<Button
 						onClick={() =>
-							onViewChange(view === "blueprint-details" ? "blueprints" : "mods")
+							onViewChange(
+								view === "blueprint-details"
+									? "blueprints"
+									: view === "map-details"
+										? "maps"
+										: "mods",
+							)
 						}
 						title={t("topBar.tooltip_back")}
 						variant="ghost"

@@ -84,85 +84,11 @@ export function ModList({
 				minHeight: 0,
 			}}
 		>
-			{/* Toolbar */}
-			<div
-				style={{
-					padding: "8px 16px",
-					display: "flex",
-					gap: "10px",
-					alignItems: "center",
-					borderBottom: `1px solid ${C.borderGrey}`,
-					backgroundColor: C.darkerGrey,
-					flexShrink: 0,
-				}}
-			>
-				<div style={{ position: "relative", flex: "1", maxWidth: "320px" }}>
-					<Search
-						size={13}
-						style={{
-							position: "absolute",
-							left: "8px",
-							top: "50%",
-							transform: "translateY(-50%)",
-							color: C.metaGrey,
-							pointerEvents: "none",
-						}}
-					/>
-					<input
-						type="text"
-						placeholder={t("modList.search_placeholder")}
-						value={search}
-						onChange={(e) => setSearch(e.target.value)}
-						style={{
-							width: "100%",
-							paddingLeft: "28px",
-							paddingRight: "10px",
-							paddingTop: "5px",
-							paddingBottom: "5px",
-							fontSize: "12px",
-							backgroundColor: C.grey,
-							border: `1px solid ${C.borderGrey}`,
-							borderRadius: "4px",
-							color: "#f8f8f8",
-							outline: "none",
-							boxSizing: "border-box",
-						}}
-					/>
-				</div>
-
-				<div style={{ display: "flex", gap: "4px" }}>
-					{(["all", "installed", "outdated"] as const).map((f) => (
-						<Button
-							key={f}
-							onClick={() => setStatusFilter(f)}
-							variant={statusFilter === f ? "default" : "outline"}
-							size="sm"
-							style={{ padding: "6px 16px", height: "auto" }}
-							className={`text-[11px] font-semibold uppercase rounded-full ${
-								statusFilter === f
-									? ""
-									: "border-[#414141] text-[#c6c6c6] hover:bg-[#414141]"
-							}`}
-						>
-							{t(`modList.filter_${f}`)}
-						</Button>
-					))}
-				</div>
-
-				<span
-					style={{ fontSize: "12px", color: C.metaGrey, marginLeft: "auto" }}
-				>
-					{t("common.mods_count", { count: filtered.length })}
-				</span>
-			</div>
-
-			{/* Grid */}
 			<div
 				ref={scrollRef}
 				style={{
 					flex: 1,
 					overflowY: "auto",
-					padding: "16px",
 					position: "relative",
 				}}
 			>
@@ -196,65 +122,139 @@ export function ModList({
 						</span>
 					</div>
 				)}
-				{syncing && mods.length === 0 ? (
+				<div style={{ maxWidth: "1200px", margin: "0 auto", padding: "24px", backgroundColor: "#2f2f2f", color: "#f8f8f8", fontWeight: 400, minHeight: "90vh", display: "flex", flexDirection: "column" }}>
+					{/* Toolbar */}
 					<div
 						style={{
+							padding: "8px 16px",
 							display: "flex",
-							flexDirection: "column",
+							gap: "10px",
 							alignItems: "center",
-							justifyContent: "center",
-							height: "192px",
-							gap: "12px",
-							color: C.metaGrey,
-							fontSize: "14px",
+							backgroundColor: C.darkerGrey,
+							borderRadius: "8px",
+							marginBottom: "16px",
 						}}
 					>
-						<Loader2
-							size={28}
-							style={{
-								animation: "spin 0.8s linear infinite",
-								color: C.lighterGrey,
-							}}
-						/>
-						<span>{t("common.syncing_mods")}</span>
-					</div>
-				) : filtered.length === 0 ? (
-					<div
-						style={{
-							display: "flex",
-							alignItems: "center",
-							justifyContent: "center",
-							height: "128px",
-							color: C.metaGrey,
-							fontSize: "14px",
-						}}
-					>
-						{t("common.no_mods_found")}
-					</div>
-				) : (
-					<div
-						style={{
-							display: "grid",
-							gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-							gap: "12px",
-						}}
-					>
-						{filtered.map((mod) => (
-							<ModCard
-								key={mod.id}
-								mod={mod}
-								onUpdate={onUpdate}
-								onInstall={onInstall}
-								onUninstall={onUninstall}
-								onSelectMod={onSelectMod}
-								installing={installingIds?.has(mod.id) ?? false}
-								showUninstall={statusFilter === "installed"}
+						<div style={{ position: "relative", flex: "1", maxWidth: "320px" }}>
+							<Search
+								size={13}
+								style={{
+									position: "absolute",
+									left: "8px",
+									top: "50%",
+									transform: "translateY(-50%)",
+									color: C.metaGrey,
+									pointerEvents: "none",
+								}}
 							/>
-						))}
-					</div>
-				)}
+							<input
+								type="text"
+								placeholder={t("modList.search_placeholder")}
+								value={search}
+								onChange={(e) => setSearch(e.target.value)}
+								style={{
+									width: "100%",
+									paddingLeft: "28px",
+									paddingRight: "10px",
+									paddingTop: "5px",
+									paddingBottom: "5px",
+									fontSize: "12px",
+									backgroundColor: C.grey,
+									border: `1px solid ${C.borderGrey}`,
+									borderRadius: "4px",
+									color: "#f8f8f8",
+									outline: "none",
+									boxSizing: "border-box",
+								}}
+							/>
+						</div>
 
-				<ScrollTopButton show={showScrollTop} onClick={scrollToTop} />
+						<div style={{ display: "flex", gap: "4px" }}>
+							{(["all", "installed", "outdated"] as const).map((f) => (
+								<Button
+									key={f}
+									onClick={() => setStatusFilter(f)}
+									variant={statusFilter === f ? "default" : "outline"}
+									size="sm"
+									style={{ padding: "6px 16px", height: "auto" }}
+									className={`text-[11px] font-semibold uppercase rounded-full ${
+										statusFilter === f
+											? ""
+											: "border-[#414141] text-[#c6c6c6] hover:bg-[#414141]"
+									}`}
+								>
+									{t(`modList.filter_${f}`)}
+								</Button>
+							))}
+						</div>
+
+						<span
+							style={{ fontSize: "12px", color: C.metaGrey, marginLeft: "auto" }}
+						>
+							{t("common.mods_count", { count: filtered.length })}
+						</span>
+					</div>
+
+					{syncing && mods.length === 0 ? (
+						<div
+							style={{
+								display: "flex",
+								flexDirection: "column",
+								alignItems: "center",
+								justifyContent: "center",
+								height: "192px",
+								gap: "12px",
+								color: C.metaGrey,
+								fontSize: "14px",
+							}}
+						>
+							<Loader2
+								size={28}
+								style={{
+									animation: "spin 0.8s linear infinite",
+									color: C.lighterGrey,
+								}}
+							/>
+							<span>{t("common.syncing_mods")}</span>
+						</div>
+					) : filtered.length === 0 ? (
+						<div
+							style={{
+								display: "flex",
+								alignItems: "center",
+								justifyContent: "center",
+								height: "128px",
+								color: C.metaGrey,
+								fontSize: "14px",
+							}}
+						>
+							{t("common.no_mods_found")}
+						</div>
+					) : (
+						<div
+							style={{
+								display: "grid",
+								gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+								gap: "12px",
+							}}
+						>
+							{filtered.map((mod) => (
+								<ModCard
+									key={mod.id}
+									mod={mod}
+									onUpdate={onUpdate}
+									onInstall={onInstall}
+									onUninstall={onUninstall}
+									onSelectMod={onSelectMod}
+									installing={installingIds?.has(mod.id) ?? false}
+									showUninstall={statusFilter === "installed"}
+								/>
+							))}
+						</div>
+					)}
+
+					<ScrollTopButton show={showScrollTop} onClick={scrollToTop} />
+				</div>
 			</div>
 		</div>
 	);

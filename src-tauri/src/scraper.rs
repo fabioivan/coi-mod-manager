@@ -282,6 +282,7 @@ pub async fn resolve_download_url(
         .map_err(|e| e.to_string())?;
 
     let doc = Html::parse_document(&html);
+
     let sel =
         Selector::parse("a.mod-download-trigger").map_err(|e| format!("Selector error: {}", e))?;
 
@@ -395,6 +396,18 @@ pub async fn scrape_mod_details(
     let links_table_tr_sel = Selector::parse(".mv2-links-table tr").unwrap();
     let tags_sel = Selector::parse(".mod-tags-row a.mod-tag").unwrap();
     let description_sel = Selector::parse(".description").unwrap();
+    let td_sel = Selector::parse("td").unwrap();
+    let a_sel = Selector::parse("a").unwrap();
+    let badge_sel = Selector::parse(".badge").unwrap();
+    let h4_mb1_sel = Selector::parse("h4.mb-1").unwrap();
+    let small_info_pill_sel = Selector::parse("small.text-muted span.info-pill").unwrap();
+    let small_text_muted_sel = Selector::parse("small.text-muted").unwrap();
+    let h4_mb2_sel = Selector::parse("h4.mb-2").unwrap();
+    let pre_sel = Selector::parse("pre").unwrap();
+    let time_ago_span_sel = Selector::parse(".mv2-header-center span.time-ago").unwrap();
+    let h4_sel = Selector::parse("h4").unwrap();
+    let info_pill_sel = Selector::parse(".info-pill").unwrap();
+    let mod_download_trigger_sel = Selector::parse(".mod-download-trigger").unwrap();
 
     let full_h1_text = doc
         .select(&h1_sel)
@@ -508,11 +521,11 @@ pub async fn scrape_mod_details(
 
     let mut websites = Vec::new();
     for tr in doc.select(&links_table_tr_sel) {
-        let cells: Vec<_> = tr.select(&Selector::parse("td").unwrap()).collect();
+        let cells: Vec<_> = tr.select(&td_sel).collect();
         if cells.len() >= 2 {
             let label = cells[0].text().collect::<String>().trim().to_string();
             if label == "Websites" || label == "Source code" {
-                for a in cells[1].select(&Selector::parse("a").unwrap()) {
+                for a in cells[1].select(&a_sel) {
                     if let Some(href) = a.value().attr("href") {
                         websites.push(href.to_string());
                     }
@@ -561,7 +574,7 @@ pub async fn scrape_mod_details(
     let cap_dd_sel = Selector::parse("#capabilitiesInfoModal dl.capability-list dd").unwrap();
     let mut dds = doc.select(&cap_dd_sel);
     for dt in doc.select(&cap_dt_sel) {
-        if let Some(badge) = dt.select(&Selector::parse(".badge").unwrap()).next() {
+        if let Some(badge) = dt.select(&badge_sel).next() {
             let name = badge.text().collect::<String>().trim().to_string();
             let cls = badge.value().attr("class").unwrap_or("");
             let severity = if cls.contains("text-bg-warning") {
@@ -589,21 +602,18 @@ pub async fn scrape_mod_details(
         Selector::parse("#tab-announcements .darkerGreyBg.p-3.rounded.mb-3").unwrap();
     for ann in doc.select(&announce_item_sel) {
         let title = ann
-            .select(&Selector::parse("h4.mb-1").unwrap())
+            .select(&h4_mb1_sel)
             .next()
             .map(|el| el.text().collect::<String>().trim().to_string())
             .unwrap_or_default();
 
         let mut version = String::new();
-        if let Some(pill) = ann
-            .select(&Selector::parse("small.text-muted span.info-pill").unwrap())
-            .next()
-        {
+        if let Some(pill) = ann.select(&small_info_pill_sel).next() {
             version = pill.text().collect::<String>().trim().to_string();
         }
 
         let full_date_text = ann
-            .select(&Selector::parse("small.text-muted").unwrap())
+            .select(&small_text_muted_sel)
             .next()
             .map(|el| el.text().collect::<String>())
             .unwrap_or_default();
@@ -626,7 +636,7 @@ pub async fn scrape_mod_details(
     let version_pane_sel = Selector::parse("#tab-versions .versionPane").unwrap();
     for pane in doc.select(&version_pane_sel) {
         let v_h4 = pane
-            .select(&Selector::parse("h4").unwrap())
+            .select(&h4_sel)
             .next()
             .map(|el| el.text().collect::<String>().trim().to_string())
             .unwrap_or_default();
@@ -635,13 +645,13 @@ pub async fn scrape_mod_details(
         }
 
         let latest = pane
-            .select(&Selector::parse(".info-pill").unwrap())
+            .select(&info_pill_sel)
             .next()
             .map(|el| el.text().collect::<String>().trim().to_string() == "Latest")
             .unwrap_or(false);
 
         let download_url = pane
-            .select(&Selector::parse(".mod-download-trigger").unwrap())
+            .select(&mod_download_trigger_sel)
             .next()
             .and_then(|el| el.value().attr("href"))
             .map(|h| format!("https://hub.coigame.com{}", h))
@@ -668,7 +678,7 @@ pub async fn scrape_mod_details(
 
         let meta_tr_sel = Selector::parse(".mv2-version-meta tr").unwrap();
         for tr in pane.select(&meta_tr_sel) {
-            let cells: Vec<_> = tr.select(&Selector::parse("td").unwrap()).collect();
+            let cells: Vec<_> = tr.select(&td_sel).collect();
             if cells.len() >= 2 {
                 let key = cells[0].text().collect::<String>().trim().to_string();
                 let val = cells[1].text().collect::<String>().trim().to_string();
@@ -684,9 +694,8 @@ pub async fn scrape_mod_details(
             }
         }
 
-        let changelog_pre_sel = Selector::parse("pre").unwrap();
         let changelog = pane
-            .select(&changelog_pre_sel)
+            .select(&pre_sel)
             .next()
             .map(|el| el.text().collect::<String>().trim().to_string())
             .unwrap_or_default();
@@ -709,7 +718,7 @@ pub async fn scrape_mod_details(
         Selector::parse("#tab-changelog .darkerGreyBg.p-3.rounded.mb-3").unwrap();
     for ch in doc.select(&changelog_item_sel) {
         let full_title = ch
-            .select(&Selector::parse("h4.mb-2").unwrap())
+            .select(&h4_mb2_sel)
             .next()
             .map(|el| el.text().collect::<String>().trim().to_string())
             .unwrap_or_default();
@@ -728,7 +737,7 @@ pub async fn scrape_mod_details(
             .unwrap_or_default();
 
         let text = ch
-            .select(&Selector::parse("pre").unwrap())
+            .select(&pre_sel)
             .next()
             .map(|el| el.text().collect::<String>().trim().to_string())
             .unwrap_or_default();
@@ -748,7 +757,7 @@ pub async fn scrape_mod_details(
         .unwrap_or_else(|| "This mod has no dependencies.".to_string());
 
     let updated_at = doc
-        .select(&Selector::parse(".mv2-header-center span.time-ago").unwrap())
+        .select(&time_ago_span_sel)
         .next()
         .and_then(|el| el.value().attr("data-utc-date"))
         .map(|s| s.to_string())

@@ -1,4 +1,4 @@
-use crate::models::{Blueprint, Mod, Profile, ProfileMod};
+use crate::models::{Blueprint, MapItem, Mod, Profile, ProfileMod};
 use rusqlite::{params, Connection, Result};
 use std::path::Path;
 use tokio::sync::Mutex;
@@ -186,6 +186,136 @@ impl Database {
             )?;
         }
 
+        let v10: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM schema_migrations WHERE version = 10",
+            [],
+            |r| r.get(0),
+        )?;
+        if v10 == 0 {
+            conn.execute_batch(
+                "
+                CREATE TABLE IF NOT EXISTS maps (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    author TEXT NOT NULL DEFAULT '',
+                    description TEXT NOT NULL DEFAULT '',
+                    thumbnail TEXT,
+                    downloads INTEGER NOT NULL DEFAULT 0,
+                    favorites INTEGER NOT NULL DEFAULT 0,
+                    approval_pct INTEGER NOT NULL DEFAULT -1,
+                    updated_at TEXT,
+                    url TEXT NOT NULL DEFAULT '',
+                    is_downloaded INTEGER NOT NULL DEFAULT 0,
+                    last_scraped_at TEXT
+                );
+                INSERT INTO schema_migrations (version) VALUES (10);
+            ",
+            )?;
+        }
+
+        let v11: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM schema_migrations WHERE version = 11",
+            [],
+            |r| r.get(0),
+        )?;
+        if v11 == 0 {
+            conn.execute_batch(
+                "ALTER TABLE maps ADD COLUMN comment_count INTEGER NOT NULL DEFAULT 0;
+                 ALTER TABLE blueprints ADD COLUMN comment_count INTEGER NOT NULL DEFAULT 0;
+                 INSERT INTO schema_migrations (version) VALUES (11);",
+            )?;
+        }
+
+        Ok(())
+    }
+
+    pub async fn get_all_maps(&self) -> Result<Vec<MapItem>> {
+        let conn = self.0.lock().await;
+        let mut stmt = conn.prepare(
+            "SELECT id, name, author, description, thumbnail,
+                    downloads, favorites, comment_count, approval_pct, updated_at,
+                    url, is_downloaded, last_scraped_at
+             FROM maps
+             ORDER BY updated_at DESC NULLS LAST",
+        )?;
+
+        let maps = stmt
+            .query_map([], |row| {
+                Ok(MapItem {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    author: row.get(2)?,
+                    description: row.get(3)?,
+                    thumbnail: row.get(4)?,
+                    downloads: row.get(5)?,
+                    favorites: row.get(6)?,
+                    comment_count: row.get(7)?,
+                    approval_pct: row.get(8)?,
+                    updated_at: row.get(9)?,
+                    url: row.get(10)?,
+                    is_downloaded: row.get::<_, i32>(11)? != 0,
+                    last_scraped_at: row.get(12)?,
+                })
+            })?
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(maps)
+    }
+
+    pub async fn upsert_map(&self, m: &MapItem) -> Result<()> {
+        let conn = self.0.lock().await;
+        conn.execute(
+            "INSERT INTO maps (id, name, author, description, thumbnail,
+                               downloads, favorites, comment_count, approval_pct, updated_at,
+                               url, last_scraped_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)
+             ON CONFLICT(id) DO UPDATE SET
+                name            = excluded.name,
+                author          = excluded.author,
+                description     = excluded.description,
+                thumbnail       = excluded.thumbnail,
+                downloads       = excluded.downloads,
+                favorites       = excluded.favorites,
+                comment_count   = excluded.comment_count,
+                approval_pct    = excluded.approval_pct,
+                updated_at      = excluded.updated_at,
+                url             = excluded.url,
+                last_scraped_at = excluded.last_scraped_at",
+            params![
+                m.id,
+                m.name,
+                m.author,
+                m.description,
+                m.thumbnail,
+                m.downloads,
+                m.favorites,
+                m.comment_count,
+                m.approval_pct,
+                m.updated_at,
+                m.url,
+                m.last_scraped_at
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub async fn get_map_url(&self, map_id: &str) -> Result<Option<String>> {
+        let conn = self.0.lock().await;
+        match conn.query_row("SELECT url FROM maps WHERE id = ?1", params![map_id], |r| {
+            r.get(0)
+        }) {
+            Ok(url) => Ok(Some(url)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub async fn mark_map_downloaded(&self, id: &str) -> Result<()> {
+        let conn = self.0.lock().await;
+        conn.execute(
+            "UPDATE maps SET is_downloaded = 1 WHERE id = ?1",
+            params![id],
+        )?;
         Ok(())
     }
 
@@ -508,7 +638,7 @@ impl Database {
         let conn = self.0.lock().await;
         let mut stmt = conn.prepare(
             "SELECT id, name, author, description, thumbnail,
-                    downloads, favorites, approval_pct, updated_at,
+                    downloads, favorites, comment_count, approval_pct, updated_at,
                     url, is_downloaded, last_scraped_at
              FROM blueprints
              ORDER BY updated_at DESC NULLS LAST",
@@ -524,11 +654,12 @@ impl Database {
                     thumbnail: row.get(4)?,
                     downloads: row.get(5)?,
                     favorites: row.get(6)?,
-                    approval_pct: row.get(7)?,
-                    updated_at: row.get(8)?,
-                    url: row.get(9)?,
-                    is_downloaded: row.get::<_, i32>(10)? != 0,
-                    last_scraped_at: row.get(11)?,
+                    comment_count: row.get(7)?,
+                    approval_pct: row.get(8)?,
+                    updated_at: row.get(9)?,
+                    url: row.get(10)?,
+                    is_downloaded: row.get::<_, i32>(11)? != 0,
+                    last_scraped_at: row.get(12)?,
                 })
             })?
             .collect::<Result<Vec<_>>>()?;
@@ -549,9 +680,9 @@ impl Database {
         let conn = self.0.lock().await;
         conn.execute(
             "INSERT INTO blueprints (id, name, author, description, thumbnail,
-                                     downloads, favorites, approval_pct, updated_at,
-                                     url, last_scraped_at)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)
+                                      downloads, favorites, comment_count, approval_pct, updated_at,
+                                      url, last_scraped_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)
              ON CONFLICT(id) DO UPDATE SET
                 name            = excluded.name,
                 author          = excluded.author,
@@ -559,6 +690,7 @@ impl Database {
                 thumbnail       = excluded.thumbnail,
                 downloads       = excluded.downloads,
                 favorites       = excluded.favorites,
+                comment_count   = excluded.comment_count,
                 approval_pct    = excluded.approval_pct,
                 updated_at      = excluded.updated_at,
                 url             = excluded.url,
@@ -571,6 +703,7 @@ impl Database {
                 bp.thumbnail,
                 bp.downloads,
                 bp.favorites,
+                bp.comment_count,
                 bp.approval_pct,
                 bp.updated_at,
                 bp.url,

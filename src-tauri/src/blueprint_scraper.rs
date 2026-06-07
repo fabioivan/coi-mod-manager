@@ -22,7 +22,12 @@ pub struct BlueprintDetails {
 
 // Todas as combinações disponíveis no site
 const ORDER_BY: &[&str] = &[
-    "popularity", "score", "latest", "updated", "downloads", "favorites",
+    "popularity",
+    "score",
+    "latest",
+    "updated",
+    "downloads",
+    "favorites",
 ];
 const TIME_RANGE: &[&str] = &["all-time", "past-week", "past-month", "past-year"];
 
@@ -108,9 +113,10 @@ fn parse_blueprint_cards(html: &str) -> Vec<Blueprint> {
             .map(|e| e.text().collect::<String>().trim().to_string())
             .unwrap_or_default();
 
-        // Stats: 4 divs — downloads, favorites, stars(ignorar), approval%
+        // Stats: 4 divs — downloads, favorites, comments, approval%
         let mut downloads = 0i64;
         let mut favorites = 0i64;
+        let mut comment_count = 0i64;
         let mut approval_pct = -1i32;
         for (i, stat_div) in card.select(&stats_sel).enumerate() {
             let val: String = stat_div
@@ -121,8 +127,14 @@ fn parse_blueprint_cards(html: &str) -> Vec<Blueprint> {
             match i {
                 0 => downloads = val.replace(',', "").parse::<i64>().unwrap_or(0),
                 1 => favorites = val.replace(',', "").parse::<i64>().unwrap_or(0),
-                2 => {} // stars — sem campo no modelo
-                3 => approval_pct = val.trim_end_matches('%').trim().parse::<i32>().unwrap_or(-1),
+                2 => comment_count = val.replace(',', "").parse::<i64>().unwrap_or(0),
+                3 => {
+                    approval_pct = val
+                        .trim_end_matches('%')
+                        .trim()
+                        .parse::<i32>()
+                        .unwrap_or(-1)
+                }
                 _ => {}
             }
         }
@@ -136,6 +148,7 @@ fn parse_blueprint_cards(html: &str) -> Vec<Blueprint> {
             thumbnail,
             downloads,
             favorites,
+            comment_count,
             approval_pct,
             updated_at,
             url,
@@ -205,7 +218,10 @@ pub async fn scrape_all_blueprints() -> Result<Vec<Blueprint>, String> {
 
 fn rewrite_urls(html: &str) -> String {
     html.replace("src=\"/", "src=\"https://hub.coigame.com/")
-        .replace("data-full-src=\"/", "data-full-src=\"https://hub.coigame.com/")
+        .replace(
+            "data-full-src=\"/",
+            "data-full-src=\"https://hub.coigame.com/",
+        )
         .replace("href=\"/", "href=\"https://hub.coigame.com/")
 }
 
@@ -301,6 +317,7 @@ pub async fn scrape_blueprint_details(
     // Meta: author, downloads, approval_pct, favorites
     let meta_col_sel = Selector::parse(".meta .col").unwrap();
     let div_sel = Selector::parse("div").unwrap();
+    let strong_sel = Selector::parse("strong").unwrap();
     let author_link_sel = Selector::parse("a").unwrap();
 
     let mut author = String::new();
@@ -311,7 +328,7 @@ pub async fn scrape_blueprint_details(
 
     for col in doc.select(&meta_col_sel) {
         let label: String = col
-            .select(&Selector::parse("strong").unwrap())
+            .select(&strong_sel)
             .next()
             .map(|s| s.text().collect::<String>().trim().to_string())
             .unwrap_or_default();

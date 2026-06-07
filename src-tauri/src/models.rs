@@ -56,6 +56,23 @@ pub struct ExportData {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct MapItem {
+    pub id: String,
+    pub name: String,
+    pub author: String,
+    pub description: String,
+    pub thumbnail: Option<String>,
+    pub downloads: i64,
+    pub favorites: i64,
+    pub comment_count: i64,
+    pub approval_pct: i32,
+    pub updated_at: Option<String>,
+    pub url: String,
+    pub is_downloaded: bool,
+    pub last_scraped_at: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Blueprint {
     pub id: String,
     pub name: String,
@@ -64,6 +81,7 @@ pub struct Blueprint {
     pub thumbnail: Option<String>,
     pub downloads: i64,
     pub favorites: i64,
+    pub comment_count: i64,
     pub approval_pct: i32,
     pub updated_at: Option<String>,
     pub url: String,

@@ -1,23 +1,23 @@
 import { ChevronDown, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { BlueprintCard } from "@/components/BlueprintCard";
+import { MapCard } from "@/components/MapCard";
 import { ScrollTopButton } from "@/components/ScrollTopButton";
 import { useScrollTop } from "@/hooks/useScrollTop";
-import type { Blueprint } from "@/types/blueprint";
+import type { MapItem } from "@/types/map";
 
-export interface BlueprintListFilters {
+export interface MapListFilters {
 	search: string;
-	orderBy: BlueprintOrderValue;
-	timeRange: BlueprintTimeValue;
+	orderBy: MapOrderValue;
+	timeRange: MapTimeValue;
 	author: string | null;
 }
 
-interface BlueprintListProps {
-	blueprints: Blueprint[];
-	onSelectBlueprint?: (id: string) => void;
-	filters: BlueprintListFilters;
-	onFiltersChange: (filters: BlueprintListFilters) => void;
+interface MapListProps {
+	maps: MapItem[];
+	onSelectMap?: (id: string) => void;
+	filters: MapListFilters;
+	onFiltersChange: (filters: MapListFilters) => void;
 }
 
 const PAGE_SIZE = 30;
@@ -38,14 +38,13 @@ const TIME_OPTIONS = [
 	{ value: "past-year", labelKey: "filters.time_year" },
 ] as const;
 
-export type BlueprintOrderValue = (typeof ORDER_OPTIONS)[number]["value"];
-export type BlueprintTimeValue = (typeof TIME_OPTIONS)[number]["value"];
+export type MapOrderValue = (typeof ORDER_OPTIONS)[number]["value"];
+export type MapTimeValue = (typeof TIME_OPTIONS)[number]["value"];
 
-// keep local aliases for internal use
-type OrderValue = BlueprintOrderValue;
-type TimeValue = BlueprintTimeValue;
+type OrderValue = MapOrderValue;
+type TimeValue = MapTimeValue;
 
-function applyTimeFilter(list: Blueprint[], timeRange: TimeValue): Blueprint[] {
+function applyTimeFilter(list: MapItem[], timeRange: TimeValue): MapItem[] {
 	if (timeRange === "all-time") return list;
 	const now = Date.now();
 	const cutoffs: Record<TimeValue, number> = {
@@ -55,13 +54,13 @@ function applyTimeFilter(list: Blueprint[], timeRange: TimeValue): Blueprint[] {
 		"past-year": 365 * 24 * 60 * 60 * 1000,
 	};
 	const cutoff = now - cutoffs[timeRange];
-	return list.filter((bp) => {
-		if (!bp.updated_at) return false;
-		return new Date(bp.updated_at).getTime() >= cutoff;
+	return list.filter((m) => {
+		if (!m.updated_at) return false;
+		return new Date(m.updated_at).getTime() >= cutoff;
 	});
 }
 
-function applySort(list: Blueprint[], orderBy: OrderValue): Blueprint[] {
+function applySort(list: MapItem[], orderBy: OrderValue): MapItem[] {
 	const sorted = [...list];
 	switch (orderBy) {
 		case "popularity":
@@ -79,7 +78,9 @@ function applySort(list: Blueprint[], orderBy: OrderValue): Blueprint[] {
 		default:
 			sorted.sort((a, b) => {
 				if (!a.updated_at || !b.updated_at) return 0;
-				return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+				return (
+					new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+				);
 			});
 	}
 	return sorted;
@@ -101,49 +102,66 @@ const SELECT_STYLE: React.CSSProperties = {
 	minWidth: "130px",
 };
 
-export function BlueprintList({
-	blueprints,
-	onSelectBlueprint,
+export function MapList({
+	maps,
+	onSelectMap,
 	filters,
 	onFiltersChange,
-}: BlueprintListProps) {
+}: MapListProps) {
 	const { t, i18n } = useTranslation();
 	const { search, orderBy, timeRange, author } = filters;
 	const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-	const setSearch = (v: string) => { setVisibleCount(PAGE_SIZE); onFiltersChange({ ...filters, search: v }); };
-	const setOrderBy = (v: OrderValue) => { setVisibleCount(PAGE_SIZE); onFiltersChange({ ...filters, orderBy: v }); };
-	const setTimeRange = (v: TimeValue) => { setVisibleCount(PAGE_SIZE); onFiltersChange({ ...filters, timeRange: v }); };
-	const clearAuthor = () => { setVisibleCount(PAGE_SIZE); onFiltersChange({ ...filters, author: null }); };
+	const setSearch = (v: string) => {
+		setVisibleCount(PAGE_SIZE);
+		onFiltersChange({ ...filters, search: v });
+	};
+	const setOrderBy = (v: OrderValue) => {
+		setVisibleCount(PAGE_SIZE);
+		onFiltersChange({ ...filters, orderBy: v });
+	};
+	const setTimeRange = (v: TimeValue) => {
+		setVisibleCount(PAGE_SIZE);
+		onFiltersChange({ ...filters, timeRange: v });
+	};
+	const clearAuthor = () => {
+		setVisibleCount(PAGE_SIZE);
+		onFiltersChange({ ...filters, author: null });
+	};
 	const sentinelRef = useRef<HTMLDivElement>(null);
 	const { scrollRef, show: showScrollTop, scrollToTop } = useScrollTop();
 
-	const handleSelect = useCallback((id: string) => {
-		onSelectBlueprint?.(id);
-	}, [onSelectBlueprint]);
+	const handleSelect = useCallback(
+		(id: string) => {
+			onSelectMap?.(id);
+		},
+		[onSelectMap],
+	);
 
-	const authorLabel = t("blueprintCard.by_author");
-	const noDateLabel = t("blueprintCard.no_date");
+	const authorLabel = t("mapCard.by_author");
+	const noDateLabel = t("mapCard.no_date");
 
 	const filtered = useMemo(() => {
-		let list = blueprints;
+		let list = maps;
 		if (author) {
 			const a = author.toLowerCase();
-			list = list.filter((bp) => bp.author?.toLowerCase() === a);
+			list = list.filter((m) => m.author?.toLowerCase() === a);
 		}
 		if (search) {
 			const q = search.toLowerCase();
-			list = list.filter((bp) => bp.name.toLowerCase().includes(q));
+			list = list.filter((m) => m.name.toLowerCase().includes(q));
 		}
 		list = applyTimeFilter(list, timeRange);
 		list = applySort(list, orderBy);
 		return list;
-	}, [blueprints, search, orderBy, timeRange, author]);
+	}, [maps, search, orderBy, timeRange, author]);
 
-	const visible = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
+	const visible = useMemo(
+		() => filtered.slice(0, visibleCount),
+		[filtered, visibleCount],
+	);
 	const hasMore = visibleCount < filtered.length;
 
-	// IntersectionObserver: carrega mais quando sentinel entra na viewport
 	useEffect(() => {
 		const sentinel = sentinelRef.current;
 		if (!sentinel || !hasMore) return;
@@ -179,7 +197,6 @@ export function BlueprintList({
 							marginBottom: "16px",
 						}}
 					>
-						{/* Dropdown 1: Ordenação */}
 						<div
 							style={{
 								position: "relative",
@@ -202,11 +219,14 @@ export function BlueprintList({
 							<ChevronDown
 								size={11}
 								color="#e5ca5f"
-								style={{ position: "absolute", right: "8px", pointerEvents: "none" }}
+								style={{
+									position: "absolute",
+									right: "8px",
+									pointerEvents: "none",
+								}}
 							/>
 						</div>
 
-						{/* Dropdown 2: Período */}
 						<div
 							style={{
 								position: "relative",
@@ -229,11 +249,14 @@ export function BlueprintList({
 							<ChevronDown
 								size={11}
 								color="#e5ca5f"
-								style={{ position: "absolute", right: "8px", pointerEvents: "none" }}
+								style={{
+									position: "absolute",
+									right: "8px",
+									pointerEvents: "none",
+								}}
 							/>
 						</div>
 
-						{/* Campo de busca */}
 						<div
 							style={{
 								flex: 1,
@@ -243,7 +266,7 @@ export function BlueprintList({
 							}}
 						>
 							<input
-								placeholder={t("blueprintList.search_placeholder")}
+								placeholder={t("mapList.search_placeholder")}
 								value={search}
 								onChange={(e) => setSearch(e.target.value)}
 								style={{
@@ -260,22 +283,27 @@ export function BlueprintList({
 							<Search
 								size={15}
 								color="#555"
-								style={{ position: "absolute", right: "1rem", pointerEvents: "none" }}
+								style={{
+									position: "absolute",
+									right: "1rem",
+									pointerEvents: "none",
+								}}
 							/>
 						</div>
 
-						{/* Chip de autor ativo */}
 						{author && (
-							<div style={{
-								display: "flex",
-								alignItems: "center",
-								gap: "6px",
-								padding: "0 10px",
-								borderLeft: "1px solid #1a1a1a",
-								fontSize: "11px",
-								color: "#e5ca5f",
-								whiteSpace: "nowrap",
-							}}>
+							<div
+								style={{
+									display: "flex",
+									alignItems: "center",
+									gap: "6px",
+									padding: "0 10px",
+									borderLeft: "1px solid #1a1a1a",
+									fontSize: "11px",
+									color: "#e5ca5f",
+									whiteSpace: "nowrap",
+								}}
+							>
 								<span>{author}</span>
 								<button
 									type="button"
@@ -291,14 +319,13 @@ export function BlueprintList({
 										display: "flex",
 										alignItems: "center",
 									}}
-									title={t("blueprintList.clear_author")}
+									title={t("mapList.clear_author")}
 								>
 									×
 								</button>
 							</div>
 						)}
 
-						{/* Contador */}
 						<div
 							style={{
 								display: "flex",
@@ -310,21 +337,21 @@ export function BlueprintList({
 								whiteSpace: "nowrap",
 							}}
 						>
-							{t("blueprintList.blueprints_count", { count: filtered.length })}
+							{t("mapList.maps_count", { count: filtered.length })}
 						</div>
 					</div>
 
 					{filtered.length === 0 ? (
 						<div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
-							{t("blueprintList.no_blueprints")}
+							{t("mapList.no_maps")}
 						</div>
 					) : (
 						<>
 							<div className="grid grid-cols-4 gap-3">
-								{visible.map((bp) => (
-									<BlueprintCard
-										key={bp.id}
-										blueprint={bp}
+								{visible.map((m) => (
+									<MapCard
+										key={m.id}
+										map={m}
 										onSelect={handleSelect}
 										locale={i18n.language}
 										authorLabel={authorLabel}
@@ -333,7 +360,6 @@ export function BlueprintList({
 								))}
 							</div>
 
-							{/* Sentinel para infinite scroll */}
 							{hasMore && (
 								<div
 									ref={sentinelRef}

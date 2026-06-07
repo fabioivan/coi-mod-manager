@@ -6,6 +6,7 @@ export interface Blueprint {
 	thumbnail: string | null;
 	downloads: number;
 	favorites: number;
+	comment_count: number;
 	approval_pct: number;
 	updated_at: string | null;
 	url: string;

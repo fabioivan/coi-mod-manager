@@ -1,9 +1,9 @@
 import { Download, Heart, MessageCircle, ThumbsUp } from "lucide-react";
 import { memo } from "react";
-import type { Blueprint } from "@/types/blueprint";
+import type { MapItem } from "@/types/map";
 
-interface BlueprintCardProps {
-	blueprint: Blueprint;
+interface MapCardProps {
+	map: MapItem;
 	onSelect?: (id: string) => void;
 	locale: string;
 	authorLabel: string;
@@ -22,28 +22,28 @@ function formatDate(iso: string, locale: string): string {
 	}
 }
 
-export const BlueprintCard = memo(function BlueprintCard({
-	blueprint,
+export const MapCard = memo(function MapCard({
+	map,
 	onSelect,
 	locale,
 	authorLabel,
 	noDateLabel,
-}: BlueprintCardProps) {
-	const subline = blueprint.author
-		? `${authorLabel.replace("{{author}}", blueprint.author)}${
-				blueprint.updated_at ? ` · ${formatDate(blueprint.updated_at, locale)}` : ""
+}: MapCardProps) {
+	const subline = map.author
+		? `${authorLabel.replace("{{author}}", map.author)}${
+				map.updated_at ? ` · ${formatDate(map.updated_at, locale)}` : ""
 			}`
-		: blueprint.updated_at
-			? formatDate(blueprint.updated_at, locale)
+		: map.updated_at
+			? formatDate(map.updated_at, locale)
 			: noDateLabel;
 
 	return (
 		<div
 			role={onSelect ? "button" : undefined}
 			tabIndex={onSelect ? 0 : undefined}
-			onClick={() => onSelect?.(blueprint.id)}
+			onClick={() => onSelect?.(map.id)}
 			onKeyDown={(e) => {
-				if (onSelect && (e.key === "Enter" || e.key === " ")) onSelect(blueprint.id);
+				if (onSelect && (e.key === "Enter" || e.key === " ")) onSelect(map.id);
 			}}
 			style={{
 				background: "#282828",
@@ -57,12 +57,11 @@ export const BlueprintCard = memo(function BlueprintCard({
 				containIntrinsicSize: "0 260px",
 			}}
 		>
-			{/* Thumbnail */}
 			<div style={{ aspectRatio: "16/9", background: "#1a1a1a", overflow: "hidden" }}>
-				{blueprint.thumbnail ? (
+				{map.thumbnail ? (
 					<img
-						src={blueprint.thumbnail}
-						alt={blueprint.name}
+						src={map.thumbnail}
+						alt={map.name}
 						loading="lazy"
 						decoding="async"
 						style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
@@ -84,7 +83,6 @@ export const BlueprintCard = memo(function BlueprintCard({
 				)}
 			</div>
 
-			{/* Info */}
 			<div style={{ padding: "10px 12px 6px" }}>
 				<h3
 					style={{
@@ -97,7 +95,7 @@ export const BlueprintCard = memo(function BlueprintCard({
 						whiteSpace: "nowrap",
 					}}
 				>
-					{blueprint.name}
+					{map.name}
 				</h3>
 				<p
 					style={{
@@ -113,7 +111,6 @@ export const BlueprintCard = memo(function BlueprintCard({
 				</p>
 			</div>
 
-			{/* Stats */}
 			<div
 				style={{
 					display: "flex",
@@ -124,24 +121,24 @@ export const BlueprintCard = memo(function BlueprintCard({
 					marginTop: "4px",
 				}}
 			>
-				{blueprint.downloads > 0 && (
+				{map.downloads > 0 && (
 					<span style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", color: "#999" }}>
 						<Download size={13} />
-						{blueprint.downloads.toLocaleString()}
+						{map.downloads.toLocaleString()}
 					</span>
 				)}
 				<span style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", color: "#999" }}>
 					<MessageCircle size={13} />
-					{blueprint.comment_count.toLocaleString()}
+					{map.comment_count.toLocaleString()}
 				</span>
 				<span style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", color: "#999" }}>
 					<Heart size={13} />
-					{blueprint.favorites.toLocaleString()}
+					{map.favorites.toLocaleString()}
 				</span>
-				{blueprint.approval_pct >= 0 && (
+				{map.approval_pct >= 0 && (
 					<span style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", color: "#999", marginLeft: "auto" }}>
 						<ThumbsUp size={13} />
-						{blueprint.approval_pct}%
+						{map.approval_pct}%
 					</span>
 				)}
 			</div>
