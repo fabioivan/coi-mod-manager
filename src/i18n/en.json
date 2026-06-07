@@ -131,6 +131,7 @@
 		"btn_sync": "Sync",
 		"tooltip_back": "Back",
 		"tooltip_settings": "Settings",
+		"tooltip_play": "Play",
 		"btn_update_all": "Update all"
 	},
 	"modDetail": {
@@ -216,8 +217,9 @@
 	},
 	"statusBar": {
 		"game_version": "Game",
-		"folder_size": "Mods folder",
-		"installed": "Installed",
+		"mods": "Mods",
+		"maps": "Maps",
+		"blueprints": "BPs",
 		"app_version": "v{{version}}",
 		"update_available": "Update available"
 	},

@@ -1,4 +1,16 @@
-import { ArrowLeft, Download, LogIn, RefreshCw, Settings, User } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
+import {
+	ArrowLeft,
+	Download,
+	LogIn,
+	Map,
+	MapIcon,
+	Package,
+	Play,
+	RefreshCw,
+	Settings,
+	User,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TabView } from "@/components/NavSidebar";
 import { Button } from "@/components/ui/button";
@@ -55,6 +67,27 @@ export function TopBar({
 	onLoginLogout,
 }: TopBarProps) {
 	const { t } = useTranslation();
+
+	const NAV_TABS: {
+		id: "blueprints" | "maps" | "mods";
+		icon: typeof Map;
+		label: string;
+		color: string;
+	}[] = [
+		{ id: "blueprints", icon: Map, label: "Blueprints", color: "#7ed3f6" },
+		{ id: "maps", icon: MapIcon, label: "Mapas", color: "#f5a623" },
+		{ id: "mods", icon: Package, label: "Mods", color: "#6eb660" },
+	];
+
+	const activeSection: "blueprints" | "maps" | "mods" | null =
+		view === "blueprints" || view === "blueprint-details"
+			? "blueprints"
+			: view === "maps" || view === "map-details"
+				? "maps"
+				: view === "mods" || view === "details"
+					? "mods"
+					: null;
+
 	return (
 		<div
 			style={{
@@ -71,7 +104,43 @@ export function TopBar({
 		>
 			{loading && <div className="sync-progress-bar" />}
 
-			<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+			<div style={{ display: "flex", alignItems: "center", gap: "0", height: "100%" }}>
+				{NAV_TABS.map(({ id, icon: Icon, label, color }) => {
+					const isActive = activeSection === id;
+					return (
+						<button
+							key={id}
+							onClick={() => onViewChange(id)}
+							style={{
+								height: "100%",
+								display: "flex",
+								alignItems: "center",
+								gap: "6px",
+								padding: "0 16px",
+								border: "none",
+								borderBottom: isActive ? `2px solid ${color}` : "2px solid transparent",
+								background: isActive ? "rgba(255,255,255,0.06)" : "transparent",
+								color: isActive ? color : "#888",
+								cursor: "pointer",
+								fontSize: "13px",
+								fontWeight: isActive ? 600 : 500,
+								transition: "background 0.15s, color 0.15s",
+							}}
+							onMouseEnter={(e) => {
+								if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.03)";
+							}}
+							onMouseLeave={(e) => {
+								if (!isActive) e.currentTarget.style.background = "transparent";
+							}}
+						>
+							<Icon size={16} />
+							{label}
+						</button>
+					);
+				})}
+			</div>
+
+			<div style={{ display: "flex", alignItems: "center", gap: "12px", marginLeft: "auto" }}>
 				{activeProfile && (
 					<div
 						style={{
@@ -137,9 +206,6 @@ export function TopBar({
 						</Button>
 					</>
 				)}
-			</div>
-
-			<div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
 				<Button
 					onClick={loginStatus === "signed_in" ? onLoginLogout : onLoginOpen}
 					variant="ghost"
@@ -201,6 +267,17 @@ export function TopBar({
 						{loading ? t("topBar.btn_syncing") : t("topBar.btn_sync")}
 					</Button>
 				)}
+				<div style={{ width: "1px", height: "20px", background: "#333" }} />
+				<Button
+					onClick={() => invoke("launch_game")}
+					title={t("topBar.tooltip_play")}
+					variant="ghost"
+					size="icon"
+					className="h-7 w-7"
+					style={{ color: "#81c784" }}
+				>
+					<Play size={15} />
+				</Button>
 				{(view === "details" ||
 					view === "blueprint-details" ||
 					view === "map-details") && (

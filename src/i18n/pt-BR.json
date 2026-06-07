@@ -131,6 +131,7 @@
 		"btn_sync": "Sincronizar",
 		"tooltip_back": "Voltar",
 		"tooltip_settings": "Configurações",
+		"tooltip_play": "Jogar",
 		"btn_update_all": "Atualizar tudo"
 	},
 	"modDetail": {
@@ -216,8 +217,9 @@
 	},
 	"statusBar": {
 		"game_version": "Jogo",
-		"folder_size": "Pasta Mods",
-		"installed": "Instalados",
+		"mods": "Mods",
+		"maps": "Mapas",
+		"blueprints": "BPs",
 		"app_version": "v{{version}}",
 		"update_available": "Atualização disponível"
 	},

@@ -1,25 +1,57 @@
 {
-	"$schema": "https://opencode.ai/config.json",
-	"formatter": {
-		"biome": {
-			"command": ["npx", "@biomejs/biome", "check", "--write", "$FILE"],
-			"extensions": [".ts", ".tsx", ".mts", ".cts", ".json", ".jsonc"]
-		},
-		"rust": {
-			"command": ["rustfmt", "$FILE"],
-			"extensions": [".rs"]
-		}
-	},
-	"lsp": {
-		"typescript": {
-			"command": ["typescript-language-server", "--stdio"]
-		},
-		"rust": {
-			"command": ["rust-analyzer"]
-		},
-		"json": {
-			"command": ["vscode-json-language-server", "--stdio"],
-			"extensions": [".json", ".jsonc"]
-		}
-	}
+  "$schema": "https://opencode.ai/config.json",
+  "formatter": {
+    "biome": {
+      "command": [
+        "npx",
+        "@biomejs/biome",
+        "check",
+        "--write",
+        "$FILE"
+      ],
+      "extensions": [
+        ".ts",
+        ".tsx",
+        ".mts",
+        ".cts",
+        ".json",
+        ".jsonc"
+      ]
+    },
+    "rust": {
+      "command": [
+        "rustfmt",
+        "$FILE"
+      ],
+      "extensions": [
+        ".rs"
+      ]
+    }
+  },
+  "lsp": {
+    "typescript": {
+      "command": [
+        "typescript-language-server",
+        "--stdio"
+      ]
+    },
+    "rust": {
+      "command": [
+        "rust-analyzer"
+      ]
+    },
+    "json": {
+      "command": [
+        "vscode-json-language-server",
+        "--stdio"
+      ],
+      "extensions": [
+        ".json",
+        ".jsonc"
+      ]
+    }
+  },
+  "plugin": [
+    "superpowers@git+https://github.com/obra/superpowers.git"
+  ]
 }

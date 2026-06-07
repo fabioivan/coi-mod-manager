@@ -1428,6 +1428,33 @@ pub async fn get_mods_folder_size(db: State<'_, Database>) -> Result<Option<u64>
     Ok(Some(total))
 }
 
+#[tauri::command]
+pub async fn get_maps_folder_size(db: State<'_, Database>) -> Result<Option<u64>, String> {
+    let folder = db
+        .get_setting("mods_folder")
+        .await
+        .map_err(|e| e.to_string())?;
+    let folder = match folder {
+        Some(f) => f,
+        None => return Ok(None),
+    };
+    let mods_path = std::path::Path::new(&folder);
+    let maps_folder = mods_path
+        .parent()
+        .map(|p| p.join("Maps"))
+        .unwrap_or_else(|| {
+            let mut p = mods_path.to_path_buf();
+            p.pop();
+            p.join("Maps")
+        });
+    if !maps_folder.exists() {
+        return Ok(None);
+    }
+    let mut total = 0u64;
+    walk_dir(&maps_folder, &mut total).map_err(|e| e.to_string())?;
+    Ok(Some(total))
+}
+
 fn walk_dir(dir: &std::path::Path, total: &mut u64) -> std::io::Result<()> {
     for entry in std::fs::read_dir(dir)? {
         let entry = entry?;
@@ -1716,6 +1743,15 @@ pub async fn login_open_browser(app: tauri::AppHandle) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
     app.opener()
         .open_url(crate::login::login_url(), None::<&str>)
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn launch_game(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    app.opener()
+        .open_url("steam://rungameid/2054330", None::<&str>)
         .map_err(|e| e.to_string())?;
     Ok(())
 }

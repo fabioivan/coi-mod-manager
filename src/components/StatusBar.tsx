@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { ArrowUpCircle, Folder, Gamepad2, Package } from "lucide-react";
+import { ArrowUpCircle, Folder, Gamepad2, MapIcon, Package } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,8 @@ function formatSize(bytes: number): string {
 
 interface StatusBarProps {
 	installedCount: number;
+	installedMapsCount: number;
+	installedBlueprintsCount: number;
 	gameVersion: string | null;
 	appUpdate: { version: string; notes?: string } | null;
 	onUpdateClick: () => void;
@@ -29,6 +31,8 @@ interface StatusBarProps {
 
 export function StatusBar({
 	installedCount,
+	installedMapsCount,
+	installedBlueprintsCount,
 	gameVersion,
 	appUpdate,
 	onUpdateClick,
@@ -36,6 +40,7 @@ export function StatusBar({
 }: StatusBarProps) {
 	const { t } = useTranslation();
 	const [folderSize, setFolderSize] = useState<string | null>(null);
+	const [mapsFolderSize, setMapsFolderSize] = useState<string | null>(null);
 	const [appVersion, setAppVersion] = useState<string>("");
 
 	useEffect(() => {
@@ -62,6 +67,24 @@ export function StatusBar({
 		};
 	}, [installedCount]);
 
+	useEffect(() => {
+		let cancelled = false;
+		async function load() {
+			try {
+				const bytes = await invoke<number | null>("get_maps_folder_size");
+				if (!cancelled && bytes !== null) {
+					setMapsFolderSize(formatSize(bytes));
+				}
+			} catch {
+				if (!cancelled) setMapsFolderSize(null);
+			}
+		}
+		load();
+		return () => {
+			cancelled = true;
+		};
+	}, [installedMapsCount]);
+
 	return (
 		<div
 			style={{
@@ -85,18 +108,36 @@ export function StatusBar({
 			</div>
 
 			<div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+				<Package size={12} color={C.accent} />
+				{t("statusBar.mods")}:
+				<span style={{ color: "#c6c6c6", fontWeight: 600 }}>
+					{installedCount}
+				</span>
+				<span style={{ color: "#666" }}>/</span>
 				<Folder size={12} color={C.accent} />
-				{t("statusBar.folder_size")}:
 				<span style={{ color: "#c6c6c6", fontWeight: 600 }}>
 					{folderSize ?? "—"}
 				</span>
 			</div>
 
 			<div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-				<Package size={12} color={C.accent} />
-				{t("statusBar.installed")}:
+				<MapIcon size={12} color={C.accent} />
+				{t("statusBar.maps")}:
 				<span style={{ color: "#c6c6c6", fontWeight: 600 }}>
-					{installedCount}
+					{installedMapsCount}
+				</span>
+				<span style={{ color: "#666" }}>/</span>
+				<Folder size={12} color={C.accent} />
+				<span style={{ color: "#c6c6c6", fontWeight: 600 }}>
+					{mapsFolderSize ?? "—"}
+				</span>
+			</div>
+
+			<div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+				<Package size={12} color={"#7ed3f6"} />
+				{t("statusBar.blueprints")}:
+				<span style={{ color: "#c6c6c6", fontWeight: 600 }}>
+					{installedBlueprintsCount}
 				</span>
 			</div>
 

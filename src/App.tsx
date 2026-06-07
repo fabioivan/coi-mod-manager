@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChangelogModal } from "@/components/ChangelogModal";
 import { LoginDialog } from "@/components/LoginDialog";
-import { NavSidebar } from "@/components/NavSidebar";
 import { Sidebar } from "@/components/Sidebar";
 import { StatusBar } from "@/components/StatusBar";
 import { TopBar } from "@/components/TopBar";
@@ -516,6 +515,14 @@ export default function App() {
 		() => mods.filter((m) => m.is_installed).length,
 		[mods],
 	);
+	const installedMapsCount = useMemo(
+		() => maps.filter((m) => m.is_downloaded).length,
+		[maps],
+	);
+	const installedBlueprintsCount = useMemo(
+		() => blueprints.filter((b) => b.is_downloaded).length,
+		[blueprints],
+	);
 
 	return (
 		<div
@@ -571,10 +578,9 @@ export default function App() {
 					return ok;
 				}}
 			/>
-			<div style={{ display: "flex", flex: 1, minHeight: 0, position: "relative" }}>
+			<div style={{ display: "flex", flex: 1, minHeight: 0 }}>
 				<Toaster />
-				<NavSidebar view={view} onViewChange={setView} />
-				<div style={{ display: "flex", flex: 1, minHeight: 0, justifyContent: "center", marginLeft: "48px" }}>
+				<div style={{ display: "flex", flex: 1, minHeight: 0, justifyContent: "center" }}>
 					{view === "mods" || view === "details" ? (
 						<Sidebar
 							tags={tags}
@@ -690,6 +696,8 @@ export default function App() {
 			</div>
 			<StatusBar
 				installedCount={installedCount}
+				installedMapsCount={installedMapsCount}
+				installedBlueprintsCount={installedBlueprintsCount}
 				gameVersion={changelogVersion ?? savedGameVersion}
 				appUpdate={appUpdate}
 				onUpdateClick={() => setShowUpdateModal(true)}
